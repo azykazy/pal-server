@@ -13,6 +13,15 @@ resource "azurerm_role_assignment" "func_network_contributor" {
   principal_id         = azurerm_function_app_flex_consumption.bot.identity[0].principal_id
 }
 
+# /palworld cost 用: サブスクリプション全体のコスト読み取り (読み取り専用)
+data "azurerm_subscription" "current" {}
+
+resource "azurerm_role_assignment" "func_cost_reader" {
+  scope                = data.azurerm_subscription.current.id
+  role_definition_name = "Cost Management Reader"
+  principal_id         = azurerm_function_app_flex_consumption.bot.identity[0].principal_id
+}
+
 # Key Vault のシークレット読み取り (app settings の Key Vault 参照の解決に必要)
 resource "azurerm_role_assignment" "func_kv_secrets_user" {
   scope                = azurerm_key_vault.main.id

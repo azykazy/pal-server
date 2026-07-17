@@ -25,6 +25,7 @@ const commands = [
       { type: 1, name: 'start', description: 'サーバーを起動して接続情報を表示します' },
       { type: 1, name: 'stop', description: 'サーバーを停止します (課金停止)' },
       { type: 1, name: 'status', description: 'サーバーの状態と接続情報を表示します' },
+      { type: 1, name: 'cost', description: '今月の Azure コストを表示します' },
     ],
   },
 ];
