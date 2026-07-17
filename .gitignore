@@ -1,0 +1,19 @@
+# このプロジェクト専用の Azure CLI プロファイル (mise の AZURE_CONFIG_DIR)
+.azure/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# Functions ビルド成果物
+dist/
+node_modules/
+local.settings.json
+
+# その他
+.env
+*.log

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# プレイヤー 0 人が一定時間続いたら安全に停止し、Functions に deallocate + Public IP 削除を依頼する。
+# 自 VM で ARM を直接呼ばないのは、IP 切り離し後は外に出られなくなるため
+# (deallocate と IP 削除は常時接続性のある Functions 側で完結させる)。
+set -u
+
+COUNT_FILE=/run/palworld-idle-count
+API="http://127.0.0.1:8212/v1/api"
+CRED='admin:${admin_password}'
+THRESHOLD=${idle_checks}
+STOP_URL='${internal_stop_url}'
+WEBHOOK='${discord_webhook_url}'
+
+# プロビジョニング前・サーバー停止中は何もしない
+[ -f /var/lib/palworld-provisioned ] || exit 0
+systemctl is-active --quiet palworld.service || exit 0
+
+players=$(curl -fsS --max-time 10 -u "$CRED" "$API/players" | jq -r '.players | length' 2>/dev/null)
+if [ -z "$players" ]; then
+  # 起動直後など API 未応答の間はカウントを進めない
+  exit 0
+fi
+
+if [ "$players" -gt 0 ]; then
+  echo 0 > "$COUNT_FILE"
+  exit 0
+fi
+
+count=$(cat "$COUNT_FILE" 2>/dev/null || echo 0)
+count=$((count + 1))
+echo "$count" > "$COUNT_FILE"
+echo "$(date -Is) idle check $count/$THRESHOLD"
+[ "$count" -lt "$THRESHOLD" ] && exit 0
+
+echo 0 > "$COUNT_FILE"
+echo "$(date -Is) idle threshold reached; shutting down"
+
+if [ -n "$WEBHOOK" ]; then
+  curl -fsS --max-time 10 -X POST "$WEBHOOK" -H "Content-Type: application/json" \
+    -d '{"content":"🌙 プレイヤーが0人の状態が続いたため、Palworld サーバーを自動停止します。"}' || true
+fi
+
+systemctl stop palworld.service
+curl -fsS --max-time 30 -X POST "$STOP_URL" || true

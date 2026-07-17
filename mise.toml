@@ -1,0 +1,29 @@
+[tools]
+terraform = "1"
+node = "20"
+azure-cli = "latest"
+
+[env]
+# az CLI の認証情報・プロファイルをプロジェクト配下に分離する。
+# グローバルの ~/.azure (他プロジェクトのアカウント) には一切触れない。
+AZURE_CONFIG_DIR = "{{config_root}}/.azure"
+
+[tasks.login]
+description = "このプロジェクト専用の Azure アカウントにログインする"
+run = "az login && az account show --output table"
+
+[tasks.build-functions]
+description = "Azure Functions のデプロイ用 zip (dist/functions.zip) を作成する"
+run = "bash scripts/build-functions.sh"
+
+[tasks.register-commands]
+description = "Discord のスラッシュコマンド (/palworld) をギルドに登録する"
+run = "node scripts/register-commands.mjs"
+
+[tasks.plan]
+description = "Functions を zip 化して terraform plan を実行する"
+run = ["bash scripts/build-functions.sh", "terraform -chdir=terraform plan"]
+
+[tasks.apply]
+description = "Functions を zip 化して terraform apply を実行する"
+run = ["bash scripts/build-functions.sh", "terraform -chdir=terraform apply"]

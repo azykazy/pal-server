@@ -1,0 +1,16 @@
+{
+  "name": "palworld-discord-bot",
+  "version": "1.0.0",
+  "description": "Discord slash commands to start/stop the Palworld Azure Spot VM",
+  "main": "src/functions/*.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@azure/arm-compute": "^24.1.0",
+    "@azure/arm-network": "^37.0.0",
+    "@azure/functions": "^4.16.2",
+    "@azure/identity": "^4.13.1",
+    "discord-interactions": "^4.4.0"
+  }
+}
