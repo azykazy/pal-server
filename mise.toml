@@ -1,7 +1,9 @@
+# azure-cli は mise (uv/pipx) 経由だと TLS 証明書検証の問題でインストールに
+# 失敗する環境があるため、システムの az を使う (sudo apt install azure-cli 等)。
+# アカウント分離は下の AZURE_CONFIG_DIR で効くので az の導入元は問わない。
 [tools]
 terraform = "1"
 node = "20"
-azure-cli = "latest"
 
 [env]
 # az CLI の認証情報・プロファイルをプロジェクト配下に分離する。
@@ -16,14 +18,22 @@ run = "az login && az account show --output table"
 description = "Azure Functions のデプロイ用 zip (dist/functions.zip) を作成する"
 run = "bash scripts/build-functions.sh"
 
+[tasks.deploy-functions]
+description = "Functions のコードを zip 化して az CLI でデプロイする"
+run = "bash scripts/deploy-functions.sh"
+
+[tasks.seed-secrets]
+description = "Key Vault にパスワード等のシークレットを投入する (未指定なら自動生成)"
+run = "bash scripts/seed-secrets.sh"
+
 [tasks.register-commands]
 description = "Discord のスラッシュコマンド (/palworld) をギルドに登録する"
 run = "node scripts/register-commands.mjs"
 
 [tasks.plan]
-description = "Functions を zip 化して terraform plan を実行する"
-run = ["bash scripts/build-functions.sh", "terraform -chdir=terraform plan"]
+description = "terraform plan を実行する"
+run = "terraform -chdir=terraform plan"
 
 [tasks.apply]
-description = "Functions を zip 化して terraform apply を実行する"
-run = ["bash scripts/build-functions.sh", "terraform -chdir=terraform apply"]
+description = "terraform apply を実行する"
+run = "terraform -chdir=terraform apply"

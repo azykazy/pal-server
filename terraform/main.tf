@@ -7,8 +7,14 @@ locals {
   game_port = 8211
 }
 
+# リソースグループはポータルで作成済みのものを import して管理する
+import {
+  to = azurerm_resource_group.main
+  id = "/subscriptions/${var.subscription_id}/resourceGroups/${var.resource_group_name}"
+}
+
 resource "azurerm_resource_group" "main" {
-  name     = "rg-${var.prefix}"
+  name     = var.resource_group_name
   location = var.location
 }
 

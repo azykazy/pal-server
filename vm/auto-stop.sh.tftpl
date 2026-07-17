@@ -6,10 +6,13 @@ set -u
 
 COUNT_FILE=/run/palworld-idle-count
 API="http://127.0.0.1:8212/v1/api"
-CRED='admin:${admin_password}'
 THRESHOLD=${idle_checks}
 STOP_URL='${internal_stop_url}'
-WEBHOOK='${discord_webhook_url}'
+
+# ADMIN_PASSWORD / DISCORD_WEBHOOK_URL は fetch-secrets.sh が Key Vault から生成した .env にある
+[ -f /opt/palworld/.env ] && . /opt/palworld/.env
+CRED="admin:$${ADMIN_PASSWORD:-}"
+WEBHOOK="$${DISCORD_WEBHOOK_URL:-}"
 
 # プロビジョニング前・サーバー停止中は何もしない
 [ -f /var/lib/palworld-provisioned ] || exit 0

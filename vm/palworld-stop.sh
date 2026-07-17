@@ -4,8 +4,11 @@
 set -u
 cd /opt/palworld
 
+# ADMIN_PASSWORD は fetch-secrets.sh が Key Vault から生成した .env にある
+[ -f /opt/palworld/.env ] && . /opt/palworld/.env
+
 API="http://127.0.0.1:8212/v1/api"
-CRED='admin:${admin_password}'
+CRED="admin:${ADMIN_PASSWORD:-}"
 
 if docker compose ps --status running 2>/dev/null | grep -q palworld-server; then
   curl -fsS --max-time 30 -u "$CRED" -X POST "$API/save" || true

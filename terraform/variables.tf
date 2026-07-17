@@ -9,6 +9,12 @@ variable "location" {
   default     = "japaneast"
 }
 
+variable "resource_group_name" {
+  description = "使用するリソースグループ名 (ポータルで作成済みのものを import する)"
+  type        = string
+  default     = "pal-server"
+}
+
 variable "prefix" {
   description = "リソース名のプレフィックス"
   type        = string
@@ -44,27 +50,8 @@ variable "server_name" {
   default     = "Palworld Private Server"
 }
 
-variable "server_password" {
-  description = "Palworld サーバーの参加パスワード (英数字のみ)"
-  type        = string
-  sensitive   = true
-
-  validation {
-    condition     = can(regex("^[A-Za-z0-9]+$", var.server_password))
-    error_message = "server_password はシェル/YAML への埋め込み事故を防ぐため英数字のみにしてください。"
-  }
-}
-
-variable "palworld_admin_password" {
-  description = "Palworld の管理者パスワード (REST API 認証に使用、英数字のみ)"
-  type        = string
-  sensitive   = true
-
-  validation {
-    condition     = can(regex("^[A-Za-z0-9]+$", var.palworld_admin_password))
-    error_message = "palworld_admin_password は英数字のみにしてください。"
-  }
-}
+# パスワード類は Terraform 変数にせず Key Vault に直接格納する
+# (apply 後に az keyvault secret set で投入。docs/SETUP.md 参照)
 
 variable "max_players" {
   description = "最大同時接続人数"
@@ -88,15 +75,4 @@ variable "discord_application_id" {
   type        = string
 }
 
-variable "discord_webhook_url" {
-  description = "自動停止通知などを送る Discord Webhook URL (空なら通知しない)"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "functions_zip_path" {
-  description = "Functions デプロイ用 zip のパス (scripts/build-functions.sh で生成)"
-  type        = string
-  default     = "../dist/functions.zip"
-}
+# Functions のコードデプロイは Terraform では行わない (scripts/deploy-functions.sh を使用)

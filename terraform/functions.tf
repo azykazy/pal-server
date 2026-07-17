@@ -51,14 +51,13 @@ resource "azurerm_function_app_flex_consumption" "bot" {
   }
 
   app_settings = {
-    # zip デプロイ時にリモートビルド (npm install) を実行する
-    SCM_DO_BUILD_DURING_DEPLOYMENT = "true"
-    # zip の内容が変わったら再デプロイを発火させるためのハッシュ
-    DEPLOY_HASH = fileexists(var.functions_zip_path) ? filemd5(var.functions_zip_path) : "missing"
+    # 注意: SCM_DO_BUILD_DURING_DEPLOYMENT は Flex SKU 非サポート。
+    # 依存は zip に node_modules を同梱する (scripts/build-functions.sh)
 
     DISCORD_PUBLIC_KEY     = var.discord_public_key
     DISCORD_APPLICATION_ID = var.discord_application_id
-    DISCORD_WEBHOOK_URL    = var.discord_webhook_url
+    # シークレットは Key Vault 参照で解決 (Managed Identity + Key Vault Secrets User)
+    DISCORD_WEBHOOK_URL = "@Microsoft.KeyVault(SecretUri=${local.kv_secret_uri.discord_webhook_url})"
 
     AZURE_SUBSCRIPTION_ID = var.subscription_id
     RESOURCE_GROUP        = azurerm_resource_group.main.name
@@ -68,10 +67,11 @@ resource "azurerm_function_app_flex_consumption" "bot" {
     LOCATION              = var.location
 
     GAME_PORT       = tostring(local.game_port)
-    SERVER_PASSWORD = var.server_password
+    SERVER_PASSWORD = "@Microsoft.KeyVault(SecretUri=${local.kv_secret_uri.server_password})"
   }
 
-  zip_deploy_file = var.functions_zip_path
+  # コードのデプロイは Terraform では行わない (Flex への zip 発行が不安定なため)。
+  # scripts/deploy-functions.sh (az functionapp deployment source config-zip) を使う。
 }
 
 data "azurerm_function_app_host_keys" "bot" {
