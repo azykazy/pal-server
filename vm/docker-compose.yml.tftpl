@@ -1,0 +1,27 @@
+services:
+  palworld:
+    image: thijsvanloef/palworld-server-docker:latest
+    container_name: palworld-server
+    restart: unless-stopped
+    stop_grace_period: 30s
+    ports:
+      - "${game_port}:${game_port}/udp"
+      - "27015:27015/udp"
+      # REST API はローカルのみ (NSG でも非公開)
+      - "127.0.0.1:8212:8212/tcp"
+    environment:
+      PUID: 1000
+      PGID: 1000
+      PORT: ${game_port}
+      PLAYERS: ${max_players}
+      MULTITHREADING: "true"
+      COMMUNITY: "false"
+      SERVER_NAME: "${server_name}"
+      SERVER_PASSWORD: "${server_password}"
+      ADMIN_PASSWORD: "${admin_password}"
+      RCON_ENABLED: "false"
+      REST_API_ENABLED: "true"
+      REST_API_PORT: 8212
+      TZ: "Asia/Tokyo"
+    volumes:
+      - /opt/palworld/data:/palworld

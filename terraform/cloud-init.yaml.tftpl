@@ -1,0 +1,106 @@
+#cloud-config
+# 注意: この VM は Public IP なし・既定送信アクセス無効で作成されるため、
+# 初回起動時点ではインターネットに出られない。実際のプロビジョニング
+# (Docker インストール等) は provision.sh が systemd timer で繰り返し試行し、
+# /palworld start で Public IP が付与されたタイミングで完了する。
+write_files:
+  - path: /etc/docker/daemon.json
+    permissions: "0644"
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": { "max-size": "10m", "max-file": "3" }
+      }
+
+  - path: /opt/palworld/docker-compose.yml
+    permissions: "0640"
+    content: |
+      ${indent(6, docker_compose)}
+
+  - path: /opt/palworld/palworld-stop.sh
+    permissions: "0700"
+    content: |
+      ${indent(6, palworld_stop)}
+
+  - path: /opt/palworld/auto-stop.sh
+    permissions: "0700"
+    content: |
+      ${indent(6, auto_stop)}
+
+  - path: /opt/palworld/provision.sh
+    permissions: "0700"
+    content: |
+      #!/usr/bin/env bash
+      # 初回プロビジョニング。外に出られるようになるまで systemd timer で再試行される。
+      set -euo pipefail
+      MARKER=/var/lib/palworld-provisioned
+      [ -f "$MARKER" ] && exit 0
+
+      if ! curl -fsS --max-time 15 https://get.docker.com -o /tmp/get-docker.sh; then
+        echo "outbound connectivity not ready; retrying later"
+        exit 0
+      fi
+
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -y
+      apt-get install -y jq
+      sh /tmp/get-docker.sh
+      systemctl restart docker
+
+      systemctl daemon-reload
+      systemctl enable --now palworld.service
+
+      touch "$MARKER"
+      systemctl disable --now palworld-provision.timer || true
+      echo "provisioning complete"
+
+  - path: /etc/systemd/system/palworld.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Palworld dedicated server (docker compose)
+      Requires=docker.service
+      After=docker.service network-online.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      WorkingDirectory=/opt/palworld
+      ExecStart=/usr/bin/docker compose up -d
+      ExecStop=/opt/palworld/palworld-stop.sh
+      TimeoutStopSec=180
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /etc/systemd/system/palworld-provision.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Palworld first-boot provisioning (retries until outbound is available)
+
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/palworld/provision.sh
+
+  - path: /etc/systemd/system/palworld-provision.timer
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Retry palworld provisioning until it succeeds
+
+      [Timer]
+      OnBootSec=30s
+      OnUnitActiveSec=120s
+
+      [Install]
+      WantedBy=timers.target
+
+  - path: /etc/cron.d/palworld-autostop
+    permissions: "0644"
+    content: |
+      */5 * * * * root /opt/palworld/auto-stop.sh >> /var/log/palworld-autostop.log 2>&1
+
+runcmd:
+  - systemctl daemon-reload
+  - systemctl enable --now palworld-provision.timer

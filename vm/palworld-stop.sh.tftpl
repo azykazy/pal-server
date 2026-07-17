@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Palworld を安全に停止する: REST API で save → shutdown → compose down
+# (セーブデータ破損を防ぐため、コンテナを直接 kill しない)
+set -u
+cd /opt/palworld
+
+API="http://127.0.0.1:8212/v1/api"
+CRED='admin:${admin_password}'
+
+if docker compose ps --status running 2>/dev/null | grep -q palworld-server; then
+  curl -fsS --max-time 30 -u "$CRED" -X POST "$API/save" || true
+  curl -fsS --max-time 10 -u "$CRED" -X POST "$API/shutdown" \
+    -H "Content-Type: application/json" \
+    -d '{"waittime":10,"message":"Server is shutting down."}' || true
+  sleep 20
+fi
+
+docker compose down --timeout 60 || true
