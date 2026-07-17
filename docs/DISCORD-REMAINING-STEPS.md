@@ -61,7 +61,8 @@ curl -X PUT "https://discord.com/api/v10/applications/1527503571770146926/guilds
   -d '[{"name":"palworld","description":"Palworld サーバーを操作します","options":[
     {"type":1,"name":"start","description":"サーバーを起動して接続情報を表示します"},
     {"type":1,"name":"stop","description":"サーバーを停止します (課金停止)"},
-    {"type":1,"name":"status","description":"サーバーの状態と接続情報を表示します"}]}]'
+    {"type":1,"name":"status","description":"サーバーの状態と接続情報を表示します"},
+    {"type":1,"name":"cost","description":"今月の Azure コストを表示します"}]}]'
 ```
 
 成功すると JSON が返り、Discord のサーバーで `/palworld` が即座に使えるようになる
@@ -76,7 +77,31 @@ DISCORD_GUILD_ID=1527498915535126558 \
 node scripts/register-commands.mjs
 ```
 
-## ☐ 4. 動作確認
+## ☐ 4. (推奨) ボタン操作パネルを設置
+
+チャンネルにボタン付きメッセージを1つ置くと、スラッシュコマンドなしでワンタップ操作できる。
+
+1. Bot を `bot` スコープ付きで**再招待**する (メッセージ送信権限が必要):
+
+   ```
+   https://discord.com/oauth2/authorize?client_id=1527503571770146926&scope=bot+applications.commands&permissions=2048
+   ```
+
+2. 設置先チャンネルの ID を取得 (開発者モード ON → チャンネルを長押し/右クリック → IDをコピー)
+3. `<BOT_TOKEN>` と `<CHANNEL_ID>` を差し替えて実行:
+
+   ```bash
+   curl -X POST "https://discord.com/api/v10/channels/<CHANNEL_ID>/messages" \
+     -H "Authorization: Bot <BOT_TOKEN>" \
+     -H "Content-Type: application/json" \
+     -d '{"content":"🎮 **Palworld サーバー操作パネル**\nボタンで操作できます (結果はこのチャンネルに返信されます)。","components":[{"type":1,"components":[{"type":2,"style":3,"label":"▶️ 起動","custom_id":"palworld_start"},{"type":2,"style":4,"label":"⏹️ 停止","custom_id":"palworld_stop"},{"type":2,"style":2,"label":"ℹ️ 状態","custom_id":"palworld_status"},{"type":2,"style":2,"label":"💰 コスト","custom_id":"palworld_cost"}]}]}'
+   ```
+
+4. 投稿されたパネルを**ピン留め**しておく (ボタンは無期限で有効)
+
+リポジトリがある場合の代替: `DISCORD_BOT_TOKEN=... DISCORD_CHANNEL_ID=... node scripts/post-panel.mjs`
+
+## ☐ 5. 動作確認
 
 1. `/palworld status` → 「⚪ サーバーは停止中です」と返れば連携成功
 2. `/palworld start` → 数分後に接続先 `IP:8211` とパスワードが表示される

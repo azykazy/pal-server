@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions');
 const { startServer, stopServer, getStatus } = require('../lib/azure');
+const { getCostSummary } = require('../lib/cost');
 const { editOriginalResponse } = require('../lib/discord');
 
 // interactions から渡されたジョブを実行し、結果を Discord のフォローアップで返す。
@@ -17,6 +18,8 @@ app.storageQueue('worker', {
         content = await startServer(context);
       } else if (action === 'stop') {
         content = await stopServer(context, { graceful: true });
+      } else if (action === 'cost') {
+        content = await getCostSummary(context);
       } else {
         content = await getStatus(context);
       }

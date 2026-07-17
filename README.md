@@ -83,6 +83,10 @@ DISCORD_APPLICATION_ID=... DISCORD_BOT_TOKEN=... DISCORD_GUILD_ID=... \
 | `/palworld start` | サーバー起動。完了すると接続先 `IP:8211` とパスワードを表示 |
 | `/palworld stop` | セーブしてサーバー停止 (課金停止) |
 | `/palworld status` | 稼働状態と接続情報を表示 |
+| `/palworld cost` | 先月〜今月の Azure コスト (サービス別内訳つき) を表示 |
+
+スラッシュコマンドの代わりに、チャンネルに常設する**ボタン操作パネル**も使える
+(`scripts/post-panel.mjs` で一度投稿してピン留めする。詳細は docs/DISCORD-REMAINING-STEPS.md)。
 
 初回の `/palworld start` はプロビジョニング (Docker とサーバー本体のダウンロード) が
 走るため、接続できるまで 10〜15 分程度かかります。2回目以降は数分です。

@@ -32,12 +32,15 @@ app.http('interactions', {
       return { jsonBody: { type: InteractionResponseType.PONG } };
     }
 
+    const VALID_ACTIONS = ['start', 'stop', 'status', 'cost'];
+
+    // スラッシュコマンド (/palworld <action>)
     if (
       interaction.type === InteractionType.APPLICATION_COMMAND &&
       interaction.data?.name === 'palworld'
     ) {
-      const action = interaction.data.options?.[0]?.name; // start | stop | status
-      if (!['start', 'stop', 'status'].includes(action)) {
+      const action = interaction.data.options?.[0]?.name;
+      if (!VALID_ACTIONS.includes(action)) {
         return {
           jsonBody: {
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -47,7 +50,21 @@ app.http('interactions', {
       }
 
       context.extraOutputs.set(jobQueue, { action, token: interaction.token });
-      context.log(`queued action: ${action}`);
+      context.log(`queued action (slash): ${action}`);
+      return {
+        jsonBody: { type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE },
+      };
+    }
+
+    // 操作パネルのボタン (custom_id: palworld_<action>)
+    if (interaction.type === InteractionType.MESSAGE_COMPONENT) {
+      const action = (interaction.data?.custom_id || '').replace(/^palworld_/, '');
+      if (!VALID_ACTIONS.includes(action)) {
+        return { status: 400, body: 'unknown component' };
+      }
+
+      context.extraOutputs.set(jobQueue, { action, token: interaction.token });
+      context.log(`queued action (button): ${action}`);
       return {
         jsonBody: { type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE },
       };
