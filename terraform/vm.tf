@@ -1,26 +1,25 @@
 locals {
   docker_compose = templatefile("${path.module}/../vm/docker-compose.yml.tftpl", {
-    server_name     = var.server_name
-    server_password = var.server_password
-    admin_password  = var.palworld_admin_password
-    max_players     = var.max_players
-    game_port       = local.game_port
+    server_name = var.server_name
+    max_players = var.max_players
+    game_port   = local.game_port
   })
 
-  palworld_stop = templatefile("${path.module}/../vm/palworld-stop.sh.tftpl", {
-    admin_password = var.palworld_admin_password
+  palworld_stop = file("${path.module}/../vm/palworld-stop.sh")
+
+  fetch_secrets = templatefile("${path.module}/../vm/fetch-secrets.sh.tftpl", {
+    key_vault_uri = azurerm_key_vault.main.vault_uri
   })
 
   auto_stop = templatefile("${path.module}/../vm/auto-stop.sh.tftpl", {
-    admin_password      = var.palworld_admin_password
-    idle_checks         = var.idle_checks
-    discord_webhook_url = var.discord_webhook_url
-    internal_stop_url   = "https://${azurerm_function_app_flex_consumption.bot.default_hostname}/api/internal-stop?code=${data.azurerm_function_app_host_keys.bot.default_function_key}"
+    idle_checks       = var.idle_checks
+    internal_stop_url = "https://${azurerm_function_app_flex_consumption.bot.default_hostname}/api/internal-stop?code=${data.azurerm_function_app_host_keys.bot.default_function_key}"
   })
 
   cloud_init = templatefile("${path.module}/cloud-init.yaml.tftpl", {
     docker_compose = local.docker_compose
     palworld_stop  = local.palworld_stop
+    fetch_secrets  = local.fetch_secrets
     auto_stop      = local.auto_stop
   })
 }
@@ -57,6 +56,11 @@ resource "azurerm_linux_virtual_machine" "palworld" {
     offer     = "ubuntu-24_04-lts"
     sku       = "server"
     version   = "latest"
+  }
+
+  # Key Vault からのシークレット取得 (fetch-secrets.sh) に使用
+  identity {
+    type = "SystemAssigned"
   }
 
   custom_data = base64encode(local.cloud_init)

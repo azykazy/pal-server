@@ -36,6 +36,9 @@ Spot VM (Standard_D4as_v5, Ubuntu 24.04, eviction=Deallocate)
 - IP は起動のたびに変わるが、`/palworld start` / `/palworld status` が
   Discord 上に接続先 (`IP:8211`) とパスワードを毎回表示する
 - プレイヤー0人が30分続くと自動でセーブして停止する (切り忘れ防止)
+- **シークレットは Key Vault 管理** (操作課金 $0.03/1万回 ≒ この用途では実質$0)。
+  パスワード類はローカルファイル・tfvars・tfstate に残らず、
+  Functions は Key Vault 参照、VM は Managed Identity で起動時に取得する
 
 ## 料金見込み (2026-07 時点, japaneast)
 
@@ -52,18 +55,20 @@ Spot VM (Standard_D4as_v5, Ubuntu 24.04, eviction=Deallocate)
 前提: [mise](https://mise.jdx.dev/) がインストール済みであること。
 
 ```bash
-mise install                 # terraform / node / azure-cli を導入
+mise install                 # terraform / node を導入 (az はシステム版を使用)
 mise run login               # パルワールド専用 Azure アカウントにログイン
                              # (AZURE_CONFIG_DIR がプロジェクト配下に分離される)
 
 # 1. Discord アプリを作成して各キーを取得 (docs/SETUP.md 参照)
-# 2. tfvars を用意
+# 2. tfvars を用意 (シークレットは書かない)
 cp terraform/terraform.tfvars.example terraform/terraform.tfvars
 $EDITOR terraform/terraform.tfvars
 
-# 3. デプロイ
+# 3. デプロイ + コード配置 + シークレット投入
 terraform -chdir=terraform init
-mise run apply               # build-functions → terraform apply
+mise run apply               # インフラ作成
+mise run deploy-functions    # Functions コードのデプロイ
+DISCORD_WEBHOOK_URL=... mise run seed-secrets
 
 # 4. 出力された interactions_endpoint_url を Discord Developer Portal に登録し、
 #    スラッシュコマンドを登録 (docs/SETUP.md 参照)

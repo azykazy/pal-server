@@ -1,3 +1,5 @@
+# パスワード類は同ディレクトリの .env (fetch-secrets.sh が Key Vault から生成) を
+# compose の変数展開で参照する。このファイル自体にはシークレットを書かない。
 services:
   palworld:
     image: thijsvanloef/palworld-server-docker:latest
@@ -17,8 +19,8 @@ services:
       MULTITHREADING: "true"
       COMMUNITY: "false"
       SERVER_NAME: "${server_name}"
-      SERVER_PASSWORD: "${server_password}"
-      ADMIN_PASSWORD: "${admin_password}"
+      SERVER_PASSWORD: "$${SERVER_PASSWORD}"
+      ADMIN_PASSWORD: "$${ADMIN_PASSWORD}"
       RCON_ENABLED: "false"
       REST_API_ENABLED: "true"
       REST_API_PORT: 8212

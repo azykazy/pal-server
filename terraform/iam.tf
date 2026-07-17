@@ -12,3 +12,17 @@ resource "azurerm_role_assignment" "func_network_contributor" {
   role_definition_name = "Network Contributor"
   principal_id         = azurerm_function_app_flex_consumption.bot.identity[0].principal_id
 }
+
+# Key Vault のシークレット読み取り (app settings の Key Vault 参照の解決に必要)
+resource "azurerm_role_assignment" "func_kv_secrets_user" {
+  scope                = azurerm_key_vault.main.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azurerm_function_app_flex_consumption.bot.identity[0].principal_id
+}
+
+# VM が起動時に fetch-secrets.sh で Key Vault からシークレットを取得するために必要
+resource "azurerm_role_assignment" "vm_kv_secrets_user" {
+  scope                = azurerm_key_vault.main.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azurerm_linux_virtual_machine.palworld.identity[0].principal_id
+}

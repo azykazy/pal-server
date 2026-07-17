@@ -24,7 +24,7 @@ path: docs/SETUP.md
    ```
 
 5. 通知用 Webhook を作成する: Discord の通知先チャンネル → 設定 → **連携サービス** →
-   **ウェブフック** → 新規作成 → URL をコピー → `discord_webhook_url`
+   **ウェブフック** → 新規作成 → URL をコピー (手順 3 の `seed-secrets` で使用)
 
 ## 2. Azure にログインする
 
@@ -37,17 +37,31 @@ az account show    # 正しいサブスクリプションか確認
 `mise.toml` が `AZURE_CONFIG_DIR` をプロジェクト配下 (`.azure/`) に分離しているため、
 他プロジェクトで使っている Azure アカウントには影響しません。
 
-## 3. tfvars を用意してデプロイする
+## 3. tfvars を用意してデプロイし、シークレットを Key Vault に投入する
 
 ```bash
 cp terraform/terraform.tfvars.example terraform/terraform.tfvars
-$EDITOR terraform/terraform.tfvars   # サブスクリプションID・SSH公開鍵・パスワード・Discordキーを記入
+$EDITOR terraform/terraform.tfvars   # サブスクリプションID・SSH公開鍵・Discord ID/Public Key を記入
+                                     # (パスワード類は書かない)
 
 terraform -chdir=terraform init
 mise run apply
+
+# Functions のコードをデプロイ (OneDeploy API 直接呼び出し)
+mise run deploy-functions
+
+# パスワードを Key Vault に投入 (未指定なら自動生成。Terraform には値が通らない)
+# ※ Portal から直接シークレットを登録しても OK (名前: server-password / admin-password / discord-webhook-url)
+DISCORD_WEBHOOK_URL="<手順1-5のWebhook URL>" mise run seed-secrets
 ```
 
 apply 完了時に `interactions_endpoint_url` が出力されます。
+サーバー参加パスワードは以下でいつでも確認できます:
+
+```bash
+az keyvault secret show --vault-name $(terraform -chdir=terraform output -raw key_vault_name) \
+  --name server-password --query value -o tsv
+```
 
 ## 4. Discord に Interactions Endpoint を登録する
 

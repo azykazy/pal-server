@@ -18,5 +18,10 @@ output "vm_name" {
   value       = azurerm_linux_virtual_machine.palworld.name
 }
 
+output "key_vault_name" {
+  description = "シークレット格納先の Key Vault 名 (scripts/seed-secrets.sh が使用)"
+  value       = azurerm_key_vault.main.name
+}
+
 # 接続用の IP は起動のたびに変わるため出力しない。
 # /palworld start・/palworld status が Discord 上に都度表示する。
