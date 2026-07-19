@@ -53,3 +53,6 @@ az vm run-command invoke -g "$RG" -n "$VM" --command-id RunShellScript --scripts
 
 echo "完了。ホストのキャラクターで再ログインして持ち物・拠点を確認してください。"
 echo "(問題があれば /opt/palworld/save-backup-* にバックアップがあります)"
+echo ""
+echo "手持ちパルやインベントリが消えている場合は docs/SAVE-MIGRATION.md のトラブルシュートを参照してください。"
+echo "(Level.sav をバックアップから復元して再 fix が必要な場合があります)"

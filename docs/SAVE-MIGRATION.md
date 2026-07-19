@@ -83,6 +83,53 @@ terraform や事前設定は不要。
 > 非対応**のため、`Exception: not a compressed Palworld save, found b'PlM' instead of b'PlZ'`
 > エラーが発生する。スクリプトは自動的に PlM 対応フォーク版を使用するため、手動変更は不要。
 
+## トラブルシュート
+
+### fix 後に手持ちパル・インベントリが消えた場合
+
+**症状**: fix は成功 (`FIX_DONE`) したが、ゲームでログインすると手持ちパルとインベントリが空。
+外に出しているパルや倉庫のアイテムは残っている。
+
+**原因**: fix ツールはキャラクターマップのみ更新するが、Level.sav 内のパルコンテナ・アイテムコンテナの
+所有権参照に旧 GUID (`0000...0001`) が残ることがある。fix ツールの出力で
+`Updated XX guild references.` の件数が少ない (数十件) 場合はこの状態。
+
+**対処**: バックアップの Level.sav (fix 前) を使って再 fix する。
+Level.sav を差し替えることで、ツールがパルコンテナを含む全参照 (数百〜千件規模) を一括更新する。
+
+Cloud Shell で以下を実行 (`W`, `NEW_GUID`, `BACKUP` は実際の値に置き換える):
+
+```bash
+az vm run-command invoke -g pal-server -n vm-palworld --command-id RunShellScript --scripts "
+  set -e
+  W=<ワールドハッシュ>
+  SAVE=/opt/palworld/data/Pal/Saved/SaveGames/0/\$W
+  NEW_GUID=<ホストの新GUID>
+  OLD_GUID=00000000000000000000000000000001
+  BACKUP=\$(ls -d /opt/palworld/save-backup-* | head -1)
+
+  systemctl stop palworld.service || true
+  cp -a \$SAVE /opt/palworld/save-before-retry-\$(date +%s)
+
+  # バックアップの Level.sav と元ホストデータを復元
+  cp \$BACKUP/Level.sav \$SAVE/Level.sav
+  cp \$BACKUP/LevelMeta.sav \$SAVE/LevelMeta.sav
+  cp \$BACKUP/Players/\${OLD_GUID}.sav \$SAVE/Players/\${OLD_GUID}.sav
+  cp \$BACKUP/Players/\${NEW_GUID}.sav \$SAVE/Players/\${NEW_GUID}.sav
+  mv \${SAVE}_backup \${SAVE}_backup_old 2>/dev/null || true
+
+  cd /opt/psfix-v2
+  echo '' | /opt/psfix-v2/venv/bin/python fix_host_save.py \"\$SAVE\" \$NEW_GUID \$OLD_GUID --guild-fix
+  chown -R 1000:1000 \$SAVE
+  systemctl start palworld.service
+  echo FIX_DONE
+" --query "value[0].message" -o tsv
+```
+
+再 fix 後に `Updated 数百件以上 guild references.` と表示されれば成功。
+
+---
+
 ## 注意事項
 
 - 移行前に必ず zip を手元にも残しておく (フェーズ2 でも VM 内にバックアップを取る)
