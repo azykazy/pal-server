@@ -73,11 +73,21 @@ async function removePublicIp(context) {
   }
 }
 
-function connectionInfo(ip) {
+async function getServerPassword() {
+  const vaultUri = process.env.KEY_VAULT_URI;
+  if (!vaultUri) return null;
+  const token = await credential.getToken('https://vault.azure.net/.default');
+  const res = await fetch(`${vaultUri}secrets/server-password?api-version=7.4`, {
+    headers: { Authorization: `Bearer ${token.token}` },
+  });
+  if (!res.ok) return null;
+  return (await res.json()).value;
+}
+
+async function connectionInfo(ip) {
   const lines = [`接続先: \`${ip}:${gamePort}\``];
-  if (process.env.SERVER_PASSWORD) {
-    lines.push(`パスワード: \`${process.env.SERVER_PASSWORD}\``);
-  }
+  const password = await getServerPassword();
+  if (password) lines.push(`パスワード: \`${password}\``);
   return lines.join('\n');
 }
 
@@ -94,7 +104,7 @@ async function startServer(context) {
   return [
     '🟢 **Palworld サーバーを起動しました！**',
     '',
-    connectionInfo(ip),
+    await connectionInfo(ip),
     '',
     '※ ワールドの読み込みに数分かかります。接続できない場合は少し待ってから再試行してください。',
   ].join('\n');
@@ -125,7 +135,7 @@ async function stopServer(context, { graceful = true } = {}) {
   await compute.virtualMachines.beginDeallocateAndWait(resourceGroup, vmName);
   await removePublicIp(context);
 
-  return '🔴 **Palworld サーバーを停止しました。** コンピューティングと IP の課金は止まりました (残るのはディスク約$2.4/月のみ)。';
+  return '🔴 **Palworld サーバーを停止しました。** コンピューティングと IP の課金は止まりました。';
 }
 
 async function getStatus(context) {
@@ -139,7 +149,7 @@ async function getStatus(context) {
     } catch (err) {
       if (!isNotFound(err)) throw err;
     }
-    return ['🟢 **サーバーは稼働中です。**', '', ip ? connectionInfo(ip) : '(Public IP なし — /palworld start を実行してください)'].join('\n');
+    return ['🟢 **サーバーは稼働中です。**', '', ip ? await connectionInfo(ip) : '(Public IP なし — /palworld start を実行してください)'].join('\n');
   }
   return `⚪ サーバーは停止中です (${state})。\`/palworld start\` で起動できます。`;
 }

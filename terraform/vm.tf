@@ -64,4 +64,10 @@ resource "azurerm_linux_virtual_machine" "palworld" {
   }
 
   custom_data = base64encode(local.cloud_init)
+
+  # cloud-init は初回起動時のみ適用されるため、変更しても VM を再作成する必要はない。
+  # fetch-secrets.sh 等の更新は az vm run-command で直接 VM 上のファイルを書き換える。
+  lifecycle {
+    ignore_changes = [custom_data]
+  }
 }

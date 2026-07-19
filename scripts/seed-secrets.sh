@@ -11,8 +11,8 @@ cd "$(dirname "$0")/.."
 
 VAULT=$(terraform -chdir=terraform output -raw key_vault_name)
 
-SERVER_PASSWORD="${SERVER_PASSWORD:-$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 14)}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)}"
+SERVER_PASSWORD="${SERVER_PASSWORD:-$(printf '%04d' $((RANDOM % 9000 + 1000)))}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-$(openssl rand -base64 32 | LC_ALL=C tr -dc 'A-Za-z0-9' | cut -c1-20)}"
 
 az keyvault secret set --vault-name "$VAULT" --name server-password --value "$SERVER_PASSWORD" --output none
 az keyvault secret set --vault-name "$VAULT" --name admin-password --value "$ADMIN_PASSWORD" --output none

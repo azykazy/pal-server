@@ -74,6 +74,7 @@ resource "azurerm_function_app_flex_consumption" "bot" {
     LOCATION              = var.location
 
     GAME_PORT       = tostring(local.game_port)
+    KEY_VAULT_URI   = azurerm_key_vault.main.vault_uri
     SERVER_PASSWORD = "@Microsoft.KeyVault(SecretUri=${local.kv_secret_uri.server_password})"
   }
 
