@@ -33,8 +33,8 @@ Spot VM (Standard_D4as_v5, Ubuntu 24.04, eviction=Deallocate)
 
 - **停止中の課金はディスク (Standard SSD 32GB, 約$2.4/月) のみ**。
   Public IP は起動時に作成・停止時に削除するため停止中は課金されない
-- IP は起動のたびに変わるが、`/palworld start` / `/palworld status` が
-  Discord 上に接続先 (`IP:8211`) とパスワードを毎回表示する
+- IP・パスワードは起動のたびに変わるが、`/palworld start` / `/palworld status` が
+  Discord 上に接続先 (`IP:8211`) と最新のパスワード (4桁数字) を毎回表示する
 - プレイヤー0人が30分続くと自動でセーブして停止する (切り忘れ防止)
 - **シークレットは Key Vault 管理** (操作課金 $0.03/1万回 ≒ この用途では実質$0)。
   パスワード類はローカルファイル・tfvars・tfstate に残らず、
@@ -97,7 +97,8 @@ DISCORD_APPLICATION_ID=... DISCORD_BOT_TOKEN=... DISCORD_GUILD_ID=... \
   データはディスクに保持されるので `/palworld start` で再開できます
 - 32GB ディスクは Palworld 本体で 15〜20GB 使うためやや余裕が少なめです。
   不足したら Azure のオンラインディスク拡張で 64GB (+$2.4/月) に上げられます
-- パスワード類・Discord キーは `terraform.tfvars` (gitignore 済み) にのみ書きます
+- Discord キー等は `terraform.tfvars` (gitignore 済み) にのみ書きます。
+  サーバーパスワードは VM 起動時に自動生成されるため `tfvars` への記載は不要です
 
 ## ディレクトリ構成
 
