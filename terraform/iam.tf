@@ -29,9 +29,9 @@ resource "azurerm_role_assignment" "func_kv_secrets_user" {
   principal_id         = azurerm_function_app_flex_consumption.bot.identity[0].principal_id
 }
 
-# VM が起動時に fetch-secrets.sh で Key Vault からシークレットを取得するために必要
-resource "azurerm_role_assignment" "vm_kv_secrets_user" {
+# VM が起動時に fetch-secrets.sh でパスワードを生成・更新するために Secrets Officer が必要
+resource "azurerm_role_assignment" "vm_kv_secrets_officer" {
   scope                = azurerm_key_vault.main.id
-  role_definition_name = "Key Vault Secrets User"
+  role_definition_name = "Key Vault Secrets Officer"
   principal_id         = azurerm_linux_virtual_machine.palworld.identity[0].principal_id
 }
