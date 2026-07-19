@@ -73,9 +73,15 @@ terraform や事前設定は不要。
    ```
 
    → Players フォルダの一覧が表示されるので、`0000...0001` **以外**の新しい GUID を入力
-   → サーバー停止 → [palworld-host-save-fix](https://github.com/xNul/palworld-host-save-fix)
+   → サーバー停止 → PlM/PlZ 両対応の修正ツール
+   ([NFZ-441/Palworld-Co-op-to-Dedicated-Server-Migration-Tool](https://github.com/NFZ-441/Palworld-Co-op-to-Dedicated-Server-Migration-Tool))
    で引き継ぎ → 再起動まで自動実行 (実行前にセーブ全体をバックアップする)
 3. ホストが再ログインし、キャラクター・持ち物・拠点を確認する
+
+> **注意: ツールについて**
+> `pip install palworld-save-tools` で入る標準版は **Palworld v1.0 以降のセーブ形式 (`PlM`) に
+> 非対応**のため、`Exception: not a compressed Palworld save, found b'PlM' instead of b'PlZ'`
+> エラーが発生する。スクリプトは自動的に PlM 対応フォーク版を使用するため、手動変更は不要。
 
 ## 注意事項
 

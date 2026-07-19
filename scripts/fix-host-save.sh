@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # 協力プレイのホストだったプレイヤーのデータを、専用サーバーで発番された新しい
-# プレイヤー ID に引き継ぐ (palworld-host-save-fix)。
+# プレイヤー ID に引き継ぐ。
+#
+# 使用ツール: NFZ-441/Palworld-Co-op-to-Dedicated-Server-Migration-Tool
+#   palworld-save-tools (pip 版) は Palworld v1.0 以降の PlM 形式に非対応のため、
+#   PlM/PlZ 両対応の上記フォーク版を使用する。
 #
 # 前提: import-save.sh 済み + ホストが新サーバーに一度ログイン済み (新 ID の .sav が生成される)
 # 使い方: bash scripts/fix-host-save.sh
@@ -22,26 +26,30 @@ az vm run-command invoke -g "$RG" -n "$VM" --command-id RunShellScript --scripts
 read -rp "ホストの新しい GUID (上の一覧の $OLD_GUID 以外の新しい .sav のファイル名、拡張子なし): " NEW_GUID
 [ -n "$NEW_GUID" ] || { echo "GUID が空です"; exit 1; }
 
-echo "== 修正ツールの実行 (サーバー停止 → fix → 起動) =="
+echo "== 修正ツールのセットアップと実行 (サーバー停止 → fix → 起動) =="
 az vm run-command invoke -g "$RG" -n "$VM" --command-id RunShellScript --scripts "
   set -e
   systemctl stop palworld.service
   export DEBIAN_FRONTEND=noninteractive
   apt-get install -y -q python3-venv git >/dev/null
-  if [ ! -d /opt/psfix ]; then
-    git clone -q https://github.com/xNul/palworld-host-save-fix /opt/psfix/repo
-    python3 -m venv /opt/psfix/venv
-    /opt/psfix/venv/bin/pip install -q palworld-save-tools
+
+  # PlM/PlZ 両対応版をセットアップ (pip の palworld-save-tools は PlM 非対応)
+  if [ ! -d /opt/psfix-v2 ]; then
+    git clone -q https://github.com/NFZ-441/Palworld-Co-op-to-Dedicated-Server-Migration-Tool.git /opt/psfix-v2
+    python3 -m venv /opt/psfix-v2/venv
+    /opt/psfix-v2/venv/bin/pip install -q git+https://github.com/oMaN-Rod/pyooz.git
+    cd /opt/psfix-v2 && git clone -q https://github.com/deafdudecomputers/PalworldSaveTools.git
   fi
+
   W=\$(grep -oP 'DedicatedServerName=\K.*' /opt/palworld/data/Pal/Saved/Config/LinuxServer/GameUserSettings.ini)
   SAVE=/opt/palworld/data/Pal/Saved/SaveGames/0/\$W
   cp -a \"\$SAVE\" \"/opt/palworld/save-backup-\$(date +%s)\"
-  cd /opt/psfix/repo
-  /opt/psfix/venv/bin/python fix_host_save.py \"\$SAVE\" $NEW_GUID $OLD_GUID True
+  cd /opt/psfix-v2
+  echo '' | /opt/psfix-v2/venv/bin/python fix_host_save.py \"\$SAVE\" $NEW_GUID $OLD_GUID --guild-fix
   chown -R 1000:1000 \"\$SAVE\"
   systemctl start palworld.service
   echo FIX_DONE
-" --query "value[0].message" -o tsv | tail -8
+" --query "value[0].message" -o tsv | tail -10
 
 echo "完了。ホストのキャラクターで再ログインして持ち物・拠点を確認してください。"
 echo "(問題があれば /opt/palworld/save-backup-* にバックアップがあります)"
