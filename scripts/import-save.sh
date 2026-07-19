@@ -45,7 +45,7 @@ az vm run-command invoke -g "$RG" -n "$VM" --command-id RunShellScript --scripts
 " --query "value[0].message" -o tsv | tail -3
 
 echo "== 4/5 セーブ zip を VM へ取り込み =="
-EXPIRY=$(date -u -d '+1 hour' '+%Y-%m-%dT%H:%MZ')
+EXPIRY=$(date -u -v+1H '+%Y-%m-%dT%H:%MZ' 2>/dev/null || date -u -d '+1 hour' '+%Y-%m-%dT%H:%MZ')
 SAS=$(az storage blob generate-sas --account-name "$SA" -c save-import -n "$BLOB_NAME" \
   --permissions r --expiry "$EXPIRY" --https-only -o tsv \
   --account-key "$(az storage account keys list -g "$RG" -n "$SA" --query '[0].value' -o tsv)")
