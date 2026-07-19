@@ -135,7 +135,7 @@ async function stopServer(context, { graceful = true } = {}) {
   await compute.virtualMachines.beginDeallocateAndWait(resourceGroup, vmName);
   await removePublicIp(context);
 
-  return '🔴 **Palworld サーバーを停止しました。** コンピューティングと IP の課金は止まりました (残るのはディスク約$2.4/月のみ)。';
+  return '🔴 **Palworld サーバーを停止しました。** コンピューティングと IP の課金は止まりました。';
 }
 
 async function getStatus(context) {
