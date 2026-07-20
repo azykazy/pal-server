@@ -26,6 +26,13 @@ resource "azurerm_storage_container" "save_import" {
   container_access_type = "private"
 }
 
+# ゲームバランス設定ファイル置き場 (vm/game-settings.env を seed-secrets でアップロード)
+resource "azurerm_storage_container" "game_config" {
+  name                  = "game-config"
+  storage_account_id    = azurerm_storage_account.func.id
+  container_access_type = "private"
+}
+
 resource "azurerm_service_plan" "func" {
   name                = "plan-${var.prefix}"
   resource_group_name = azurerm_resource_group.main.name
