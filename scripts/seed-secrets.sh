@@ -29,12 +29,14 @@ echo "Key Vault '$VAULT' に server-password / admin-password を設定しまし
 echo "サーバー参加パスワードの確認: az keyvault secret show --vault-name $VAULT --name server-password --query value -o tsv"
 
 # ── ゲーム設定を Blob Storage にアップロード ────────────────────
+RG=$(terraform -chdir=terraform output -raw resource_group_name)
+STORAGE_KEY=$(az storage account keys list --account-name "$STORAGE" --resource-group "$RG" --query "[0].value" -o tsv)
 az storage blob upload \
   --account-name "$STORAGE" \
+  --account-key "$STORAGE_KEY" \
   --container-name "game-config" \
   --name "settings.env" \
   --file "vm/game-settings.env" \
-  --auth-mode login \
   --overwrite \
   --output none
 echo "ゲーム設定を Blob Storage ($STORAGE/game-config/settings.env) にアップロードしました"

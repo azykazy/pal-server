@@ -56,18 +56,20 @@ update_game_setting() {
   fi
   echo "✓ $env_file: ${key}=${value} を更新しました"
 
-  local STORAGE
+  local STORAGE RG STORAGE_KEY
   if ! STORAGE=$(terraform -chdir=terraform output -raw storage_account_name 2>/dev/null); then
     echo "警告: Blob へのアップロードをスキップ (terraform apply を先に実行してください)" >&2
     return 0
   fi
 
+  RG=$(terraform -chdir=terraform output -raw resource_group_name)
+  STORAGE_KEY=$(az storage account keys list --account-name "$STORAGE" --resource-group "$RG" --query "[0].value" -o tsv)
   az storage blob upload \
     --account-name "$STORAGE" \
+    --account-key "$STORAGE_KEY" \
     --container-name "game-config" \
     --name "settings.env" \
     --file "$env_file" \
-    --auth-mode login \
     --overwrite \
     --output none
   echo "✓ Blob Storage ($STORAGE/game-config/settings.env) を更新しました"
