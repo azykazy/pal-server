@@ -30,8 +30,10 @@ if [ -n "${STORAGE_ACCOUNT:-}" ]; then
     if tar -czf "/tmp/$BACKUP_NAME" -C "$SAVE_BASE" "$(basename "$WORLD_DIR")"; then
       STORAGE_TOKEN=$(curl -fsS --max-time 15 -H "Metadata: true" \
         "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fstorage.azure.com" \
-        | jq -r .access_token)
-      if curl -fsS --max-time 120 -X PUT \
+        | jq -r .access_token) || true
+      if [ -z "${STORAGE_TOKEN:-}" ] || [ "$STORAGE_TOKEN" = "null" ]; then
+        echo "IMDS トークン取得失敗 (バックアップをスキップ)" >&2
+      elif curl -fsS --max-time 120 -X PUT \
           -H "Authorization: Bearer $STORAGE_TOKEN" \
           -H "x-ms-version: 2020-10-02" \
           -H "x-ms-blob-type: BlockBlob" \
