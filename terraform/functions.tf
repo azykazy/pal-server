@@ -96,9 +96,3 @@ resource "azurerm_function_app_flex_consumption" "bot" {
   # scripts/deploy-functions.sh (az functionapp deployment source config-zip) を使う。
 }
 
-data "azurerm_function_app_host_keys" "bot" {
-  name                = azurerm_function_app_flex_consumption.bot.name
-  resource_group_name = azurerm_resource_group.main.name
-
-  depends_on = [azurerm_function_app_flex_consumption.bot]
-}

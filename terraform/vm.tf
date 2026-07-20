@@ -14,8 +14,7 @@ locals {
   })
 
   auto_stop = templatefile("${path.module}/../vm/auto-stop.sh.tftpl", {
-    idle_checks       = var.idle_checks
-    internal_stop_url = "https://${azurerm_function_app_flex_consumption.bot.default_hostname}/api/internal-stop?code=${data.azurerm_function_app_host_keys.bot.default_function_key}"
+    idle_checks = var.idle_checks
   })
 
   cloud_init = templatefile("${path.module}/cloud-init.yaml.tftpl", {
