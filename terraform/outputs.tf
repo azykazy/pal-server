@@ -23,5 +23,10 @@ output "key_vault_name" {
   value       = azurerm_key_vault.main.name
 }
 
+output "storage_account_name" {
+  description = "ゲーム設定ファイルを保存するストレージアカウント名 (scripts/seed-secrets.sh が使用)"
+  value       = azurerm_storage_account.func.name
+}
+
 # 接続用の IP は起動のたびに変わるため出力しない。
 # /palworld start・/palworld status が Discord 上に都度表示する。

@@ -8,7 +8,9 @@ locals {
   palworld_stop = file("${path.module}/../vm/palworld-stop.sh")
 
   fetch_secrets = templatefile("${path.module}/../vm/fetch-secrets.sh.tftpl", {
-    key_vault_uri = azurerm_key_vault.main.vault_uri
+    key_vault_uri          = azurerm_key_vault.main.vault_uri
+    game_settings_blob_url = "${azurerm_storage_account.func.primary_blob_endpoint}${azurerm_storage_container.game_config.name}/settings.env"
+    storage_account_name   = azurerm_storage_account.func.name
   })
 
   auto_stop = templatefile("${path.module}/../vm/auto-stop.sh.tftpl", {

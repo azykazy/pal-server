@@ -37,3 +37,7 @@ run = "terraform -chdir=terraform plan"
 [tasks.apply]
 description = "terraform apply を実行する"
 run = "terraform -chdir=terraform apply"
+
+[tasks.update-config]
+description = "サーバー設定を表示・変更する (引数なしで現在の設定を表示)"
+run = "bash scripts/update-config.sh"

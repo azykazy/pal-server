@@ -35,3 +35,17 @@ resource "azurerm_role_assignment" "vm_kv_secrets_officer" {
   role_definition_name = "Key Vault Secrets Officer"
   principal_id         = azurerm_linux_virtual_machine.palworld.identity[0].principal_id
 }
+
+# VM が起動時に game-config コンテナからゲーム設定を読み取るために必要
+resource "azurerm_role_assignment" "vm_game_config_reader" {
+  scope                = "${azurerm_storage_account.func.id}/blobServices/default/containers/${azurerm_storage_container.game_config.name}"
+  role_definition_name = "Storage Blob Data Reader"
+  principal_id         = azurerm_linux_virtual_machine.palworld.identity[0].principal_id
+}
+
+# VM が停止時に save-backup コンテナへセーブデータをアップロードするために必要
+resource "azurerm_role_assignment" "vm_save_backup_contributor" {
+  scope                = "${azurerm_storage_account.func.id}/blobServices/default/containers/${azurerm_storage_container.save_backup.name}"
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_linux_virtual_machine.palworld.identity[0].principal_id
+}
