@@ -208,6 +208,7 @@ case "$COMMAND" in
           -g "$RG" -n "$VM_TF" \
           --command-id RunShellScript \
           --scripts \
+            "sed -i 's|COMMUNITY:.*|COMMUNITY: \"$VALUE\"|' /opt/palworld/docker-compose.yml" \
             "cd /opt/palworld && /opt/palworld/fetch-secrets.sh && docker compose up -d palworld 2>/dev/null || true" \
           --output none 2>/dev/null; then
         echo "✓ コミュニティモードを ${MODE} にし、コンテナを再起動しました"
