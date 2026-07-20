@@ -42,7 +42,12 @@ if [ -n "${STORAGE_ACCOUNT:-}" ]; then
         # 起動時の検証に使う latest.json を更新する
         WORLD_ID=$(basename "$WORLD_DIR")
         FILE_COUNT=$(find "$WORLD_DIR" -type f 2>/dev/null | wc -l | tr -d ' ')
-        LATEST_JSON="{\"filename\":\"$BACKUP_NAME\",\"world_id\":\"$WORLD_ID\",\"file_count\":$FILE_COUNT,\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+        LATEST_JSON=$(jq -n \
+          --arg filename "$BACKUP_NAME" \
+          --arg world_id "$WORLD_ID" \
+          --argjson file_count "$FILE_COUNT" \
+          --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          '{filename: $filename, world_id: $world_id, file_count: $file_count, timestamp: $timestamp}')
         if curl -fsS --max-time 30 -X PUT \
             -H "Authorization: Bearer $STORAGE_TOKEN" \
             -H "x-ms-version: 2020-10-02" \
