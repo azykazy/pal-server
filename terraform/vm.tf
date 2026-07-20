@@ -5,7 +5,8 @@ locals {
     game_port   = local.game_port
   })
 
-  palworld_stop = file("${path.module}/../vm/palworld-stop.sh")
+  palworld_stop        = file("${path.module}/../vm/palworld-stop.sh")
+  palworld_start_check = file("${path.module}/../vm/palworld-start-check.sh")
 
   fetch_secrets = templatefile("${path.module}/../vm/fetch-secrets.sh.tftpl", {
     key_vault_uri          = azurerm_key_vault.main.vault_uri
@@ -19,10 +20,11 @@ locals {
   })
 
   cloud_init = templatefile("${path.module}/cloud-init.yaml.tftpl", {
-    docker_compose = local.docker_compose
-    palworld_stop  = local.palworld_stop
-    fetch_secrets  = local.fetch_secrets
-    auto_stop      = local.auto_stop
+    docker_compose       = local.docker_compose
+    palworld_stop        = local.palworld_stop
+    fetch_secrets        = local.fetch_secrets
+    auto_stop            = local.auto_stop
+    palworld_start_check = local.palworld_start_check
   })
 }
 

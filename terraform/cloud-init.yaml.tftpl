@@ -27,6 +27,11 @@ write_files:
     content: |
       ${indent(6, fetch_secrets)}
 
+  - path: /opt/palworld/palworld-start-check.sh
+    permissions: "0700"
+    content: |
+      ${indent(6, palworld_start_check)}
+
   - path: /opt/palworld/auto-stop.sh
     permissions: "0700"
     content: |
@@ -72,6 +77,7 @@ write_files:
       RemainAfterExit=yes
       WorkingDirectory=/opt/palworld
       ExecStartPre=/opt/palworld/fetch-secrets.sh
+      ExecStartPre=/opt/palworld/palworld-start-check.sh
       ExecStart=/usr/bin/docker compose up -d
       ExecStop=/opt/palworld/palworld-stop.sh
       TimeoutStopSec=180

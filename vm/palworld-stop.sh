@@ -39,6 +39,21 @@ if [ -n "${STORAGE_ACCOUNT:-}" ]; then
           --data-binary @"/tmp/$BACKUP_NAME" \
           "https://${STORAGE_ACCOUNT}.blob.core.windows.net/save-backup/$BACKUP_NAME"; then
         echo "バックアップ完了: save-backup/$BACKUP_NAME"
+        # 起動時の検証に使う latest.json を更新する
+        WORLD_ID=$(basename "$WORLD_DIR")
+        FILE_COUNT=$(find "$WORLD_DIR" -type f 2>/dev/null | wc -l | tr -d ' ')
+        LATEST_JSON="{\"filename\":\"$BACKUP_NAME\",\"world_id\":\"$WORLD_ID\",\"file_count\":$FILE_COUNT,\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+        if curl -fsS --max-time 30 -X PUT \
+            -H "Authorization: Bearer $STORAGE_TOKEN" \
+            -H "x-ms-version: 2020-10-02" \
+            -H "x-ms-blob-type: BlockBlob" \
+            -H "Content-Type: application/json" \
+            --data-binary "$LATEST_JSON" \
+            "https://${STORAGE_ACCOUNT}.blob.core.windows.net/save-backup/latest.json"; then
+          echo "latest.json 更新完了 (ワールド: $WORLD_ID, ファイル数: $FILE_COUNT)"
+        else
+          echo "latest.json 更新失敗 (停止処理は継続)" >&2
+        fi
       else
         echo "バックアップ失敗 (停止処理は継続)" >&2
       fi
