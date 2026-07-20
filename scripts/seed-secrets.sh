@@ -10,13 +10,23 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 VAULT=$(terraform -chdir=terraform output -raw key_vault_name)
+FUNC_NAME=$(terraform -chdir=terraform output -raw function_app_name)
 STORAGE=$(terraform -chdir=terraform output -raw storage_account_name)
+RG=$(terraform -chdir=terraform output -raw resource_group_name)
 
 SERVER_PASSWORD="${SERVER_PASSWORD:-$(printf '%04d' $((RANDOM % 9000 + 1000)))}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-$(openssl rand -base64 32 | LC_ALL=C tr -dc 'A-Za-z0-9' | cut -c1-20)}"
 
 az keyvault secret set --vault-name "$VAULT" --name server-password --value "$SERVER_PASSWORD" --output none
 az keyvault secret set --vault-name "$VAULT" --name admin-password --value "$ADMIN_PASSWORD" --output none
+
+# Function Key を az CLI から取得して Key Vault に格納する。
+# Terraform state / cloud-init には Function Key を含めないことで漏洩リスクを低減する。
+FUNC_HOSTNAME=$(az functionapp show --name "$FUNC_NAME" --resource-group "$RG" --query defaultHostName -o tsv)
+FUNC_KEY=$(az functionapp keys list --name "$FUNC_NAME" --resource-group "$RG" --query functionKeys.default -o tsv)
+INTERNAL_STOP_URL="https://$FUNC_HOSTNAME/api/internal-stop?code=$FUNC_KEY"
+az keyvault secret set --vault-name "$VAULT" --name internal-stop-url --value "$INTERNAL_STOP_URL" --output none
+echo "internal-stop-url を Key Vault に設定しました"
 
 if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
   az keyvault secret set --vault-name "$VAULT" --name discord-webhook-url --value "$DISCORD_WEBHOOK_URL" --output none
@@ -29,7 +39,6 @@ echo "Key Vault '$VAULT' に server-password / admin-password を設定しまし
 echo "サーバー参加パスワードの確認: az keyvault secret show --vault-name $VAULT --name server-password --query value -o tsv"
 
 # ── ゲーム設定を Blob Storage にアップロード ────────────────────
-RG=$(terraform -chdir=terraform output -raw resource_group_name)
 STORAGE_KEY=$(az storage account keys list --account-name "$STORAGE" --resource-group "$RG" --query "[0].value" -o tsv)
 az storage blob upload \
   --account-name "$STORAGE" \
