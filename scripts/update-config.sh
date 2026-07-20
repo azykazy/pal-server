@@ -130,6 +130,7 @@ print_usage() {
   server-password [値]         サーバーパスワードを変更する (省略でランダム4桁)
   admin-password [値]          管理者パスワードを変更する (省略でランダム生成)
   discord-webhook <URL>        Discord Webhook URL を設定する
+  community on|off             コミュニティサーバーとして公開する (on でサーバーブラウザに表示)
   game-setting <KEY> <値>      ゲームバランス設定を変更し Blob に反映する
 
 game-setting の KEY 例:
@@ -175,7 +176,7 @@ case "$COMMAND" in
     echo "→ terraform apply で変更を反映してください"
     ;;
   server-password)
-    PW="${1:-$(printf '%04d' $((RANDOM % 9000 + 1000)))}"
+    PW="${1:-$(printf '%04d%04d%04d' $((RANDOM % 10000)) $((RANDOM % 10000)) $((RANDOM % 10000)))}"
     vault_set "server-password" "$PW"
     echo "  新しいパスワード: $PW"
     echo "→ サーバーを再起動すると反映されます"
@@ -188,6 +189,33 @@ case "$COMMAND" in
   discord-webhook)
     [ $# -lt 1 ] && { echo "使い方: update-config discord-webhook <URL>"; exit 1; }
     vault_set "discord-webhook-url" "$1"
+    ;;
+  community)
+    MODE="${1:-}"
+    if [ "$MODE" != "on" ] && [ "$MODE" != "off" ]; then
+      echo "使い方: update-config community on|off"
+      exit 1
+    fi
+    VALUE=$( [ "$MODE" = "on" ] && echo "true" || echo "false" )
+    vault_set "community-mode" "$VALUE"
+    echo "  コミュニティモード: $MODE ($VALUE)"
+
+    RG=$(terraform -chdir=terraform output -raw resource_group_name 2>/dev/null || true)
+    VM_TF=$(terraform -chdir=terraform output -raw vm_name 2>/dev/null || true)
+    if [ -n "$RG" ] && [ -n "$VM_TF" ]; then
+      echo "→ VM ($VM_TF) の設定を更新中..."
+      if az vm run-command invoke \
+          -g "$RG" -n "$VM_TF" \
+          --command-id RunShellScript \
+          --scripts \
+            "sed -i 's|COMMUNITY:.*|COMMUNITY: \"$VALUE\"|' /opt/palworld/docker-compose.yml" \
+            "cd /opt/palworld && /opt/palworld/fetch-secrets.sh && docker compose up -d palworld 2>/dev/null || true" \
+          --output none 2>/dev/null; then
+        echo "✓ コミュニティモードを ${MODE} にし、コンテナを再起動しました"
+      else
+        echo "  VM が起動していないため、次回 /palworld start 時に自動反映されます"
+      fi
+    fi
     ;;
   game-setting)
     [ $# -lt 2 ] && { echo "使い方: update-config game-setting <KEY> <値>"; exit 1; }
