@@ -17,3 +17,4 @@ local.settings.json
 # その他
 .env
 *.log
+*.zip
