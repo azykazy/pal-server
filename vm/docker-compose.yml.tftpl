@@ -17,8 +17,9 @@ services:
       PORT: ${game_port}
       PLAYERS: ${max_players}
       MULTITHREADING: "true"
-      COMMUNITY: "false"
+      COMMUNITY: "true"
       SERVER_NAME: "${server_name}"
+      PUBLIC_IP: "$${PUBLIC_IP}"
       SERVER_PASSWORD: "$${SERVER_PASSWORD}"
       ADMIN_PASSWORD: "$${ADMIN_PASSWORD}"
       RCON_ENABLED: "false"
