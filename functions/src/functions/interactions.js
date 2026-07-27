@@ -65,7 +65,12 @@ app.http('interactions', {
     if (interaction.type === InteractionType.MESSAGE_COMPONENT) {
       const action = (interaction.data?.custom_id || '').replace(/^palworld_/, '');
       if (!VALID_ACTIONS.includes(action)) {
-        return { status: 400, body: 'unknown component' };
+        return {
+          jsonBody: {
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: { content: '不明な操作です。', flags: 64 },
+          },
+        };
       }
 
       context.extraOutputs.set(jobQueue, { action, token: interaction.token });
