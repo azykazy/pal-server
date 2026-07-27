@@ -11,8 +11,9 @@ const location = process.env.LOCATION;
 const gamePort = process.env.GAME_PORT || '8211';
 
 const credential = new DefaultAzureCredential();
-const compute = new ComputeManagementClient(credential, subscriptionId);
-const network = new NetworkManagementClient(credential, subscriptionId);
+const retryOptions = { maxRetries: 3, retryDelayInMs: 1000, maxRetryDelayInMs: 8000 };
+const compute = new ComputeManagementClient(credential, subscriptionId, { retryOptions });
+const network = new NetworkManagementClient(credential, subscriptionId, { retryOptions });
 
 function isNotFound(err) {
   return err.statusCode === 404 || err.code === 'ResourceNotFound' || err.code === 'NotFound';
