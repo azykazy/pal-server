@@ -3,6 +3,14 @@
   "version": "1.0.0",
   "description": "Discord slash commands to start/stop the Palworld Azure Spot VM",
   "main": "src/functions/*.js",
+  "scripts": {
+    "test": "jest",
+    "test:coverage": "jest --coverage"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/tests/**/*.test.js"]
+  },
   "engines": {
     "node": ">=20"
   },
@@ -12,5 +20,8 @@
     "@azure/functions": "^4.16.2",
     "@azure/identity": "^4.13.1",
     "discord-interactions": "^4.4.0"
+  },
+  "devDependencies": {
+    "jest": "^30.4.2"
   }
 }
