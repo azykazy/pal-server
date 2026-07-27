@@ -8,6 +8,11 @@ cd "$(dirname "$0")/.."
 
 # terraform 不要 (Azure Cloud Shell でも実行可)。環境変数で上書き可能
 BLOB_NAME="${1:?使い方: import-save.sh <blob名>}"
+# シングルクォート等がRun Commandのシェル文字列でインジェクションを引き起こすため検証する
+if [[ ! "$BLOB_NAME" =~ ^[a-zA-Z0-9._/-]+$ ]]; then
+  echo "エラー: blob名に使用できない文字が含まれています (使用可: 英数字・. _ / -)" >&2
+  exit 1
+fi
 RG="${RG:-pal-server}"
 VM="${VM:-vm-palworld}"
 SA="${SA:-$(az storage account list -g "$RG" --query "[?starts_with(name,'stpalworld')].name" -o tsv)}"
