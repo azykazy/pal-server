@@ -61,7 +61,7 @@ resource "azurerm_function_app_flex_consumption" "bot" {
 
   runtime_name           = "node"
   runtime_version        = "20"
-  maximum_instance_count = 40
+  maximum_instance_count = 1
   instance_memory_in_mb  = 2048
   https_only             = true
 
