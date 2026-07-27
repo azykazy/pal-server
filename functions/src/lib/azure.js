@@ -1,6 +1,7 @@
 const { DefaultAzureCredential } = require('@azure/identity');
 const { ComputeManagementClient } = require('@azure/arm-compute');
 const { NetworkManagementClient } = require('@azure/arm-network');
+const { notifyWebhook } = require('./discord');
 
 const subscriptionId = process.env.AZURE_SUBSCRIPTION_ID;
 const resourceGroup = process.env.RESOURCE_GROUP;
@@ -69,7 +70,10 @@ async function removePublicIp(context) {
     context.log(`deleting public IP ${pipName}`);
     await network.publicIPAddresses.beginDeleteAndWait(resourceGroup, pipName);
   } catch (err) {
-    if (!isNotFound(err)) throw err;
+    if (!isNotFound(err)) {
+      await notifyWebhook(`⚠️ Public IP の削除に失敗しました。手動で ${pipName} を削除してください。`);
+      context.warn('PIP deletion failed', err);
+    }
   }
 }
 
