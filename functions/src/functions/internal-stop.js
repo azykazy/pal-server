@@ -11,9 +11,15 @@ app.http('internalStop', {
   route: 'internal-stop',
   handler: async (request, context) => {
     context.log('internal stop requested (auto-stop from VM)');
-    // palworld 自体は VM 側で graceful 停止済みなので Run Command は不要
-    const result = await stopServer(context, { graceful: false });
-    await notifyWebhook(`✅ 自動停止が完了しました。\n${result}`);
-    return { status: 200, jsonBody: { ok: true } };
+    try {
+      // palworld 自体は VM 側で graceful 停止済みなので Run Command は不要
+      const result = await stopServer(context, { graceful: false });
+      await notifyWebhook(`✅ 自動停止が完了しました。\n${result}`);
+      return { status: 200, jsonBody: { ok: true } };
+    } catch (err) {
+      context.error('internal-stop failed', err);
+      await notifyWebhook(`⚠️ 自動停止に失敗しました: ${err.message}`);
+      return { status: 500, jsonBody: { ok: false, error: err.message } };
+    }
   },
 });

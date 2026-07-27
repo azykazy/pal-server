@@ -8,11 +8,16 @@ cd /opt/palworld
 [ -f /opt/palworld/.env ] && . /opt/palworld/.env
 
 API="http://127.0.0.1:8212/v1/api"
-CRED="admin:${ADMIN_PASSWORD:-}"
+
+# ADMIN_PASSWORD をコマンドライン引数に露出させないため netrc で認証
+NETRC=$(mktemp)
+chmod 600 "$NETRC"
+printf 'machine 127.0.0.1 login admin password %s\n' "${ADMIN_PASSWORD:-}" > "$NETRC"
+trap 'rm -f "$NETRC"' EXIT
 
 if docker compose ps --status running 2>/dev/null | grep -q palworld-server; then
-  curl -fsS --max-time 30 -u "$CRED" -X POST "$API/save" || true
-  curl -fsS --max-time 10 -u "$CRED" -X POST "$API/shutdown" \
+  curl -fsS --max-time 30 --netrc-file "$NETRC" -X POST "$API/save" || true
+  curl -fsS --max-time 10 --netrc-file "$NETRC" -X POST "$API/shutdown" \
     -H "Content-Type: application/json" \
     -d '{"waittime":10,"message":"Server is shutting down."}' || true
   sleep 20
@@ -23,15 +28,19 @@ docker compose down --timeout 60 || true
 # ── セーブデータを Blob Storage にバックアップ ──────────────────
 if [ -n "${STORAGE_ACCOUNT:-}" ]; then
   SAVE_BASE=/opt/palworld/data/Pal/Saved/SaveGames/0
-  WORLD_DIR=$(find "$SAVE_BASE" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | head -1)
-  if [ -n "$WORLD_DIR" ]; then
+  SETTINGS=/opt/palworld/data/Pal/Saved/Config/LinuxServer/GameUserSettings.ini
+  WORLD_HASH=$(grep -oP 'DedicatedServerName=\K.*' "$SETTINGS" 2>/dev/null | tr -d '[:space:]')
+  WORLD_DIR="${SAVE_BASE}/${WORLD_HASH}"
+  if [ -n "$WORLD_HASH" ] && [ -d "$WORLD_DIR" ]; then
     BACKUP_NAME="$(date -u +%Y%m%d-%H%M%S).tar.gz"
     echo "セーブデータをバックアップ中: $BACKUP_NAME"
     if tar -czf "/tmp/$BACKUP_NAME" -C "$SAVE_BASE" "$(basename "$WORLD_DIR")"; then
       STORAGE_TOKEN=$(curl -fsS --max-time 15 -H "Metadata: true" \
         "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fstorage.azure.com" \
-        | jq -r .access_token)
-      if curl -fsS --max-time 120 -X PUT \
+        | jq -r .access_token) || true
+      if [ -z "${STORAGE_TOKEN:-}" ] || [ "$STORAGE_TOKEN" = "null" ]; then
+        echo "IMDS トークン取得失敗 (バックアップをスキップ)" >&2
+      elif curl -fsS --max-time 120 -X PUT \
           -H "Authorization: Bearer $STORAGE_TOKEN" \
           -H "x-ms-version: 2020-10-02" \
           -H "x-ms-blob-type: BlockBlob" \
