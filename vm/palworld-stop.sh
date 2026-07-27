@@ -8,11 +8,16 @@ cd /opt/palworld
 [ -f /opt/palworld/.env ] && . /opt/palworld/.env
 
 API="http://127.0.0.1:8212/v1/api"
-CRED="admin:${ADMIN_PASSWORD:-}"
+
+# ADMIN_PASSWORD をコマンドライン引数に露出させないため netrc で認証
+NETRC=$(mktemp)
+chmod 600 "$NETRC"
+printf 'machine 127.0.0.1 login admin password %s\n' "${ADMIN_PASSWORD:-}" > "$NETRC"
+trap 'rm -f "$NETRC"' EXIT
 
 if docker compose ps --status running 2>/dev/null | grep -q palworld-server; then
-  curl -fsS --max-time 30 -u "$CRED" -X POST "$API/save" || true
-  curl -fsS --max-time 10 -u "$CRED" -X POST "$API/shutdown" \
+  curl -fsS --max-time 30 --netrc-file "$NETRC" -X POST "$API/save" || true
+  curl -fsS --max-time 10 --netrc-file "$NETRC" -X POST "$API/shutdown" \
     -H "Content-Type: application/json" \
     -d '{"waittime":10,"message":"Server is shutting down."}' || true
   sleep 20
