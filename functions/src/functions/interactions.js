@@ -51,8 +51,13 @@ app.http('interactions', {
 
       context.extraOutputs.set(jobQueue, { action, token: interaction.token });
       context.log(`queued action (slash): ${action}`);
+      // start / status は接続先 IP とパスワードを含むため本人にのみ見える ephemeral 応答にする
+      const ephemeralFlag = ['start', 'status'].includes(action) ? { flags: 64 } : undefined;
       return {
-        jsonBody: { type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE },
+        jsonBody: {
+          type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+          data: ephemeralFlag,
+        },
       };
     }
 
@@ -65,8 +70,12 @@ app.http('interactions', {
 
       context.extraOutputs.set(jobQueue, { action, token: interaction.token });
       context.log(`queued action (button): ${action}`);
+      const ephemeralFlag = ['start', 'status'].includes(action) ? { flags: 64 } : undefined;
       return {
-        jsonBody: { type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE },
+        jsonBody: {
+          type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+          data: ephemeralFlag,
+        },
       };
     }
 
