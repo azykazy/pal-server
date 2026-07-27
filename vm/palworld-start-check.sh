@@ -47,7 +47,7 @@ notify_discord() {
   if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
     curl -fsS --max-time 10 -X POST "$DISCORD_WEBHOOK_URL" \
       -H "Content-Type: application/json" \
-      -d "{\"content\":\"$msg\"}" || true
+      -d "$(jq -n --arg content "$msg" '{content: $content}')" || true
   fi
 }
 
