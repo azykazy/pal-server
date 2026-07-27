@@ -52,7 +52,7 @@ fi
 systemctl stop palworld.service
 
 if [ -n "$STOP_URL" ]; then
-  if echo "$STOP_URL" | grep -qE '^https://[^/]+\.azurewebsites\.net/'; then
+  if printf '%s' "$STOP_URL" | grep -qE '^https://[^/]+\.azurewebsites\.net/'; then
     curl -fsS --max-time 30 -X POST "$STOP_URL" || true
   else
     echo "$(date -Is) STOP_URL が不正なホストを指しています" >&2
