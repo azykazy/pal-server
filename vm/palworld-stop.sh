@@ -23,8 +23,10 @@ docker compose down --timeout 60 || true
 # ── セーブデータを Blob Storage にバックアップ ──────────────────
 if [ -n "${STORAGE_ACCOUNT:-}" ]; then
   SAVE_BASE=/opt/palworld/data/Pal/Saved/SaveGames/0
-  WORLD_DIR=$(find "$SAVE_BASE" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | head -1)
-  if [ -n "$WORLD_DIR" ]; then
+  SETTINGS=/opt/palworld/data/Pal/Saved/Config/LinuxServer/GameUserSettings.ini
+  WORLD_HASH=$(grep -oP 'DedicatedServerName=\K.*' "$SETTINGS" 2>/dev/null | tr -d '[:space:]')
+  WORLD_DIR="${SAVE_BASE}/${WORLD_HASH}"
+  if [ -n "$WORLD_HASH" ] && [ -d "$WORLD_DIR" ]; then
     BACKUP_NAME="$(date -u +%Y%m%d-%H%M%S).tar.gz"
     echo "セーブデータをバックアップ中: $BACKUP_NAME"
     if tar -czf "/tmp/$BACKUP_NAME" -C "$SAVE_BASE" "$(basename "$WORLD_DIR")"; then
