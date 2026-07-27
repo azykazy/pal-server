@@ -1,6 +1,6 @@
-const { app } = require('@azure/functions');
-const { stopServer } = require('../lib/azure');
-const { notifyWebhook } = require('../lib/discord');
+import { app } from '@azure/functions';
+import { stopServer } from '../lib/azure';
+import { notifyWebhook } from '../lib/discord';
 
 // VM 上の auto-stop.sh から呼ばれる内部エンドポイント (function key で保護)。
 // VM は自分の Public IP を切り離すと外に出られなくなるため、
@@ -18,8 +18,8 @@ app.http('internalStop', {
       return { status: 200, jsonBody: { ok: true } };
     } catch (err) {
       context.error('internal-stop failed', err);
-      await notifyWebhook(`⚠️ 自動停止に失敗しました: ${err.message}`);
-      return { status: 500, jsonBody: { ok: false, error: err.message } };
+      await notifyWebhook(`⚠️ 自動停止に失敗しました: ${(err as Error).message}`);
+      return { status: 500, jsonBody: { ok: false, error: (err as Error).message } };
     }
   },
 });

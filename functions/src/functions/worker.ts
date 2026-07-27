@@ -1,18 +1,18 @@
-const { app } = require('@azure/functions');
-const { startServer, stopServer, getStatus } = require('../lib/azure');
-const { getCostSummary } = require('../lib/cost');
-const { editOriginalResponse } = require('../lib/discord');
+import { app } from '@azure/functions';
+import { startServer, stopServer, getStatus } from '../lib/azure';
+import { getCostSummary } from '../lib/cost';
+import { editOriginalResponse } from '../lib/discord';
 
 // interactions から渡されたジョブを実行し、結果を Discord のフォローアップで返す。
 // VM の起動/停止は数分かかるが、interaction token は 15 分有効なので間に合う。
 app.storageQueue('worker', {
   queueName: 'palworld-jobs',
   connection: 'AzureWebJobsStorage',
-  handler: async (message, context) => {
-    const { action, token } = message;
+  handler: async (message: unknown, context) => {
+    const { action, token } = message as { action: string; token: string };
     context.log(`processing action: ${action}`);
 
-    let content;
+    let content: string;
     try {
       if (action === 'start') {
         content = await startServer(context);
@@ -25,7 +25,7 @@ app.storageQueue('worker', {
       }
     } catch (err) {
       context.error(`action ${action} failed`, err);
-      content = `⚠️ 操作に失敗しました: ${err.message}`;
+      content = `⚠️ 操作に失敗しました: ${(err as Error).message}`;
     }
 
     await editOriginalResponse(token, content);

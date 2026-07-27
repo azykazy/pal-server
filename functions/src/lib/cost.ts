@@ -1,11 +1,24 @@
 // Azure Cost Management API で先月〜今月のコストを月別に取得する。
 // 追加パッケージは使わず、Managed Identity のトークンで REST を直接呼ぶ。
-const { DefaultAzureCredential } = require('@azure/identity');
+import { DefaultAzureCredential } from '@azure/identity';
+import type { InvocationContext } from '@azure/functions';
 
 const credential = new DefaultAzureCredential();
-const subscriptionId = process.env.AZURE_SUBSCRIPTION_ID;
+const subscriptionId = process.env.AZURE_SUBSCRIPTION_ID ?? '';
 
-async function getCostSummary(context) {
+interface CostRow {
+  cost: number;
+  service: string;
+}
+
+interface CostApiResponse {
+  properties: {
+    columns: { name: string }[];
+    rows: (string | number)[][];
+  };
+}
+
+export async function getCostSummary(context: InvocationContext): Promise<string> {
   const token = await credential.getToken('https://management.azure.com/.default');
   const url = `https://management.azure.com/subscriptions/${subscriptionId}/providers/Microsoft.CostManagement/query?api-version=2023-11-01`;
 
@@ -16,7 +29,7 @@ async function getCostSummary(context) {
   const res = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token.token}`,
+      Authorization: `Bearer ${token!.token}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -34,7 +47,7 @@ async function getCostSummary(context) {
     throw new Error(`Cost Management API failed: ${res.status} ${await res.text()}`);
   }
 
-  const data = await res.json();
+  const data = (await res.json()) as CostApiResponse;
   const columns = data.properties.columns.map((c) => c.name);
   const iCost = columns.indexOf('Cost');
   const iMonth = columns.indexOf('BillingMonth');
@@ -42,22 +55,22 @@ async function getCostSummary(context) {
   const iCurrency = columns.indexOf('Currency');
 
   // 月 (YYYY-MM) ごとにサービス別コストを集計
-  const byMonth = new Map();
+  const byMonth = new Map<string, CostRow[]>();
   let currency = 'USD';
-  for (const r of data.properties.rows || []) {
+  for (const r of data.properties.rows ?? []) {
     const monthKey = String(r[iMonth]).slice(0, 7);
-    currency = r[iCurrency] || currency;
+    currency = (r[iCurrency] as string) || currency;
     if (!byMonth.has(monthKey)) byMonth.set(monthKey, []);
-    byMonth.get(monthKey).push({ cost: r[iCost], service: r[iService] });
+    byMonth.get(monthKey)!.push({ cost: r[iCost] as number, service: r[iService] as string });
   }
 
-  const fmt = (n) => n.toLocaleString('ja-JP', { maximumFractionDigits: 2 });
+  const fmt = (n: number) => n.toLocaleString('ja-JP', { maximumFractionDigits: 2 });
   const thisMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
   const lines = ['💰 **Azure コスト (先月〜今月)**'];
 
   const months = [...byMonth.keys()].sort().reverse();
   for (const month of months) {
-    const rows = byMonth.get(month).sort((a, b) => b.cost - a.cost);
+    const rows = byMonth.get(month)!.sort((a, b) => b.cost - a.cost);
     const total = rows.reduce((sum, r) => sum + r.cost, 0);
     const label = month === thisMonth ? `${month} (今月・途中経過)` : month;
     lines.push('', `📅 **${label}: ${fmt(total)} ${currency}**`);
@@ -78,5 +91,3 @@ async function getCostSummary(context) {
   lines.push('', '※ 課金データの反映には最大24時間ほどかかります。');
   return lines.join('\n');
 }
-
-module.exports = { getCostSummary };
