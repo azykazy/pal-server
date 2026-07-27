@@ -56,7 +56,7 @@ app.http('interactions', {
       return {
         jsonBody: {
           type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
-          data: ephemeralFlag,
+          ...(ephemeralFlag && { data: ephemeralFlag }),
         },
       };
     }
@@ -74,7 +74,7 @@ app.http('interactions', {
       return {
         jsonBody: {
           type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
-          data: ephemeralFlag,
+          ...(ephemeralFlag && { data: ephemeralFlag }),
         },
       };
     }
