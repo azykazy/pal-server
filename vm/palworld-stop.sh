@@ -20,7 +20,10 @@ if docker compose ps --status running 2>/dev/null | grep -q palworld-server; the
   curl -fsS --max-time 10 --netrc-file "$NETRC" -X POST "$API/shutdown" \
     -H "Content-Type: application/json" \
     -d '{"waittime":10,"message":"Server is shutting down."}' || true
-  sleep 20
+  for i in $(seq 1 20); do
+    docker compose ps --status running 2>/dev/null | grep -q palworld-server || break
+    sleep 1
+  done
 fi
 
 docker compose down --timeout 60 || true
