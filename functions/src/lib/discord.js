@@ -17,13 +17,16 @@ async function notifyWebhook(content) {
   const url = process.env.DISCORD_WEBHOOK_URL;
   if (!url) return;
   try {
-    await fetch(url, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content }),
     });
-  } catch {
-    // 通知失敗で本処理を止めない
+    if (!res.ok) {
+      console.warn(`Discord webhook returned ${res.status}`);
+    }
+  } catch (err) {
+    console.warn('Discord webhook failed:', err.message);
   }
 }
 

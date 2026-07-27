@@ -10,8 +10,13 @@ resource "azurerm_key_vault" "main" {
   sku_name            = "standard"
 
   rbac_authorization_enabled = true
-  purge_protection_enabled   = false
+  # 一度 true にすると無効化不可（Azure の仕様）。削除後も retention 期間中は復元のみ可能
+  purge_protection_enabled   = true
   soft_delete_retention_days = 7
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 locals {

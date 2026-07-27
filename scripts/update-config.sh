@@ -8,7 +8,7 @@
 #   mise run update-config -- idle-checks 12
 #   mise run update-config -- vm-size Standard_D4as_v5
 #   mise run update-config -- ssh-cidr "1.2.3.4/32"
-#   mise run update-config -- server-password           # ランダム4桁
+#   mise run update-config -- server-password           # ランダム8桁
 #   mise run update-config -- server-password 1234
 #   mise run update-config -- admin-password            # ランダム生成
 #   mise run update-config -- discord-webhook https://...
@@ -76,6 +76,11 @@ update_game_setting() {
   echo "→ 次回サーバー起動時に反映されます (/palworld stop → /palworld start)"
 }
 
+# fetch-secrets.sh.tftpl と同じロジックで8桁数字パスワードを生成する
+generate_server_password() {
+  openssl rand -hex 40 | tr -dc '0-9' | cut -c1-8
+}
+
 # Key Vault シークレットを更新する
 vault_set() {
   local name="$1" value="$2"
@@ -127,7 +132,7 @@ print_usage() {
   idle-checks <回数>           自動停止チェック回数を変更する (5分間隔 × 回数)
   vm-size <サイズ>             VM サイズを変更する (VM 再作成が発生)
   ssh-cidr [CIDR]              SSH 許可 CIDR を変更する (省略で非公開)
-  server-password [値]         サーバーパスワードを変更する (省略でランダム4桁)
+  server-password [値]         サーバーパスワードを変更する (省略でランダム8桁)
   admin-password [値]          管理者パスワードを変更する (省略でランダム生成)
   discord-webhook <URL>        Discord Webhook URL を設定する
   community on|off             コミュニティサーバーとして公開する (on でサーバーブラウザに表示)
@@ -176,7 +181,7 @@ case "$COMMAND" in
     echo "→ terraform apply で変更を反映してください"
     ;;
   server-password)
-    PW="${1:-$(printf '%04d%04d%04d' $((RANDOM % 10000)) $((RANDOM % 10000)) $((RANDOM % 10000)))}"
+    PW="${1:-$(generate_server_password)}"
     vault_set "server-password" "$PW"
     echo "  新しいパスワード: $PW"
     echo "→ サーバーを再起動すると反映されます"
