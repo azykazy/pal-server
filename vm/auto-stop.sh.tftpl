@@ -11,7 +11,6 @@ THRESHOLD=${idle_checks}
 # ADMIN_PASSWORD / DISCORD_WEBHOOK_URL / INTERNAL_STOP_URL は
 # fetch-secrets.sh が Key Vault から取得し .env に書き込む
 [ -f /opt/palworld/.env ] && . /opt/palworld/.env
-CRED="admin:$${ADMIN_PASSWORD:-}"
 WEBHOOK="$${DISCORD_WEBHOOK_URL:-}"
 STOP_URL="$${INTERNAL_STOP_URL:-}"
 
@@ -19,7 +18,13 @@ STOP_URL="$${INTERNAL_STOP_URL:-}"
 [ -f /var/lib/palworld-provisioned ] || exit 0
 systemctl is-active --quiet palworld.service || exit 0
 
-players=$(curl -fsS --max-time 10 -u "$CRED" "$API/players" | jq -r '.players | length' 2>/dev/null)
+# ADMIN_PASSWORD をコマンドライン引数に露出させないため netrc で認証
+NETRC=$(mktemp)
+chmod 600 "$NETRC"
+printf 'machine 127.0.0.1 login admin password %s\n' "$${ADMIN_PASSWORD:-}" > "$NETRC"
+trap 'rm -f "$NETRC"' EXIT
+
+players=$(curl -fsS --max-time 10 --netrc-file "$NETRC" "$API/players" | jq -r '.players | length' 2>/dev/null)
 if [ -z "$players" ]; then
   # 起動直後など API 未応答の間はカウントを進めない
   exit 0
@@ -45,4 +50,11 @@ if [ -n "$WEBHOOK" ]; then
 fi
 
 systemctl stop palworld.service
-curl -fsS --max-time 30 -X POST "$STOP_URL" || true
+
+if [ -n "$STOP_URL" ]; then
+  if echo "$STOP_URL" | grep -qE '^https://[^/]+\.azurewebsites\.net/'; then
+    curl -fsS --max-time 30 -X POST "$STOP_URL" || true
+  else
+    echo "$(date -Is) STOP_URL が不正なホストを指しています" >&2
+  fi
+fi
