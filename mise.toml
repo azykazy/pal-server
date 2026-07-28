@@ -41,3 +41,15 @@ run = "terraform -chdir=terraform apply"
 [tasks.update-config]
 description = "サーバー設定を表示・変更する (引数なしで現在の設定を表示)"
 run = "bash scripts/update-config.sh"
+
+[tasks.test]
+description = "Functions のユニットテストを実行する"
+run = "npm --prefix functions test"
+
+[tasks.test-shell]
+description = "シェルスクリプトの bats テストを実行する (brew install bats-core が必要)"
+run = "bats local/tests/backup.bats local/tests/restore.bats"
+
+[tasks.test-e2e]
+description = "Azurite 統合テストを実行する (Docker 起動済み・local/.env 必要)"
+run = "bats local/tests/e2e.bats"

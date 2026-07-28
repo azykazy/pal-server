@@ -48,7 +48,7 @@ SAVE_BASE="$PALWORLD_DATA_DIR/Pal/Saved/SaveGames/0"
 SETTINGS="$PALWORLD_DATA_DIR/Pal/Saved/Config/LinuxServer/GameUserSettings.ini"
 
 # sed で取得 (GNU grep -oP がない macOS でも動作)
-WORLD_HASH=$(sed -n 's/^DedicatedServerName=//p' "$SETTINGS" 2>/dev/null | tr -d '[:space:]' || true)
+WORLD_HASH=$(sed -n 's/^DedicatedServerName=//p' "$SETTINGS" 2>/dev/null | head -1 | tr -d '[:space:]' || true)
 WORLD_DIR="${SAVE_BASE}/${WORLD_HASH}"
 
 if [ -z "$WORLD_HASH" ] || [ ! -d "$WORLD_DIR" ]; then

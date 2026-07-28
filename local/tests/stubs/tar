@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# tar コマンドのスタブ - 通常は実 tar に委譲し、フラグで失敗を注入できる
+# TAR_CREATE_FAIL=true: tar -czf を失敗させる (B6)
+# TAR_EXTRACT_FAIL=true: tar -xzf を失敗させる (R2)
+#
+# macOS (BSD tar) には --no-absolute-names / --no-overwrite-dir がないため除去する
+
+if [ "${TAR_CREATE_FAIL:-false}" = "true" ]; then
+  for arg in "$@"; do
+    [ "$arg" = "-czf" ] && exit 1
+  done
+fi
+
+if [ "${TAR_EXTRACT_FAIL:-false}" = "true" ]; then
+  for arg in "$@"; do
+    [ "$arg" = "-xzf" ] && exit 1
+  done
+fi
+
+REAL_TAR=""
+for p in /usr/bin/tar /bin/tar /usr/local/bin/tar; do
+  [ -x "$p" ] && REAL_TAR="$p" && break
+done
+[ -z "$REAL_TAR" ] && echo "tar stub: real tar not found" >&2 && exit 1
+
+# GNU tar 専用フラグを BSD tar 環境で除去する
+if ! "$REAL_TAR" --no-absolute-names --version > /dev/null 2>&1; then
+  FILTERED=()
+  for arg in "$@"; do
+    case "$arg" in
+      --no-absolute-names|--no-overwrite-dir) ;;
+      *) FILTERED+=("$arg") ;;
+    esac
+  done
+  exec "$REAL_TAR" "${FILTERED[@]}"
+fi
+
+exec "$REAL_TAR" "$@"

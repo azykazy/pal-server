@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# docker コマンドのスタブ - palworld コンテナは常に停止中として応答する
+# docker compose ps --status running → 空出力 (grep -q が失敗する)
+# その他のコマンド → exit 0
+
+case "$*" in
+  *"ps --status running"*)
+    exit 0  # 空出力: palworld-server が grep -q で見つからない
+    ;;
+  *)
+    exit 0
+    ;;
+esac

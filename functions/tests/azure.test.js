@@ -231,6 +231,61 @@ describe('stopServer', () => {
   });
 });
 
+// ─── startServer (Key Vault) ──────────────────────────────────────────────────
+
+describe('startServer (Key Vault)', () => {
+  const vaultUri = 'https://test-vault.vault.azure.net/';
+
+  beforeEach(() => {
+    process.env.KEY_VAULT_URI = vaultUri;
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    delete process.env.KEY_VAULT_URI;
+    delete global.fetch;
+  });
+
+  test('#15 Key Vault からパスワード取得成功 → 接続情報にパスワードが含まれる', async () => {
+    mockInstanceView.mockResolvedValue({ statuses: [{ code: 'PowerState/running' }] });
+    mockGetPip.mockResolvedValue(makePip('1.2.3.4'));
+    mockGetNic.mockResolvedValue(makeNic('/pip/pip-test'));
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ value: 'my-secret-password' }),
+    });
+
+    const result = await startServer(mockContext);
+
+    expect(result).toContain('my-secret-password');
+    expect(result).toContain('1.2.3.4:8211');
+  });
+
+  test('#16 KEY_VAULT_URI 未設定 → パスワードなしで起動成功', async () => {
+    delete process.env.KEY_VAULT_URI;
+    mockInstanceView.mockResolvedValue({ statuses: [{ code: 'PowerState/running' }] });
+    mockGetPip.mockResolvedValue(makePip('1.2.3.4'));
+    mockGetNic.mockResolvedValue(makeNic('/pip/pip-test'));
+
+    const result = await startServer(mockContext);
+
+    expect(result).toContain('1.2.3.4:8211');
+    expect(result).not.toContain('パスワード');
+  });
+
+  test('#17 Key Vault 応答エラー → パスワードなしでも起動成功', async () => {
+    mockInstanceView.mockResolvedValue({ statuses: [{ code: 'PowerState/running' }] });
+    mockGetPip.mockResolvedValue(makePip('1.2.3.4'));
+    mockGetNic.mockResolvedValue(makeNic('/pip/pip-test'));
+    global.fetch.mockResolvedValue({ ok: false, status: 403 });
+
+    const result = await startServer(mockContext);
+
+    expect(result).toContain('1.2.3.4:8211');
+    expect(result).not.toContain('パスワード');
+  });
+});
+
 // ─── getStatus ────────────────────────────────────────────────────────────────
 
 describe('getStatus', () => {

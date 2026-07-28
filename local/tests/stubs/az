@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# az コマンドのスタブ - ファイルシステムで Blob Storage を模倣する
+# BLOB_STORE: ブロブ置き場のルートディレクトリ (setup で設定)
+# AZ_UPLOAD_FAIL=true: blob upload を失敗させる
+# AZ_DOWNLOAD_FAIL=true: blob download を失敗させる
+
+BLOB_STORE="${BLOB_STORE:-/tmp/bats-blob}"
+
+subcmd="$1 $2 $3"
+shift 3 2>/dev/null || true
+
+name="" file="" container=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --name)           name="$2"; shift 2 ;;
+    --file)           file="$2"; shift 2 ;;
+    --container-name) container="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+
+case "$subcmd" in
+  "storage blob upload")
+    if [ "${AZ_UPLOAD_FAIL:-false}" = "true" ]; then
+      echo "ERROR: Upload failed (stubbed)" >&2
+      exit 1
+    fi
+    mkdir -p "$BLOB_STORE/$container"
+    [ -n "$file" ] && [ -f "$file" ] && cp "$file" "$BLOB_STORE/$container/$name"
+    exit 0
+    ;;
+  "storage blob download")
+    if [ "${AZ_DOWNLOAD_FAIL:-false}" = "true" ]; then
+      echo "ERROR: Download failed (stubbed)" >&2
+      exit 1
+    fi
+    if [ -n "$name" ] && [ -n "$file" ] && [ -f "$BLOB_STORE/$container/$name" ]; then
+      cp "$BLOB_STORE/$container/$name" "$file"
+      exit 0
+    fi
+    echo "ERROR: Blob not found: $container/$name" >&2
+    exit 1
+    ;;
+  *)
+    exit 0
+    ;;
+esac
