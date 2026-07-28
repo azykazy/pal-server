@@ -2,45 +2,21 @@
 # VM起動時にローカルセーブデータをBlob Storageのバックアップと比較・検証する。
 # セーブが消失していれば自動復元し、不整合があれば Discord に通知する。
 # systemd ExecStartPre で実行されるため、常に exit 0 で終了してサーバー起動を阻害しない。
+#
+# LOCAL_DEV=true のとき:
+#   - PALWORLD_DIR で作業ディレクトリを指定 (デフォルト: /opt/palworld)
+#   - Blob 操作を IMDS+curl ではなく az storage CLI (Azurite) で行う
+#   - AZURITE_CONNECTION_STRING で接続先を指定
 set -u
 
 log()  { echo "[start-check] $*"; }
 warn() { echo "[start-check] ⚠️  $*" >&2; }
 
-[ -f /opt/palworld/.env ] && . /opt/palworld/.env
+PALWORLD_DIR="${PALWORLD_DIR:-/opt/palworld}"
+[ -f "$PALWORLD_DIR/.env" ] && . "$PALWORLD_DIR/.env"
 
-SAVE_BASE=/opt/palworld/data/Pal/Saved/SaveGames/0
-
-if [ -z "${STORAGE_ACCOUNT:-}" ]; then
-  log "STORAGE_ACCOUNT 未設定 (スキップ)"
-  exit 0
-fi
-
-# IMDS からストレージトークン取得
-STORAGE_TOKEN=$(curl -fsS --max-time 15 \
-  -H "Metadata: true" \
-  "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fstorage.azure.com" \
-  | jq -r .access_token 2>/dev/null) || { warn "ストレージトークン取得失敗 (スキップ)"; exit 0; }
-
-CONTAINER_URL="https://${STORAGE_ACCOUNT}.blob.core.windows.net/save-backup"
-
-# Blob Storage から latest.json を取得
-LATEST=$(curl -fsS --max-time 15 \
-  -H "Authorization: Bearer $STORAGE_TOKEN" \
-  -H "x-ms-version: 2020-10-02" \
-  "$CONTAINER_URL/latest.json" 2>/dev/null) || { log "バックアップ情報なし (初回起動の可能性)"; exit 0; }
-
-BACKUP_FILENAME=$(echo "$LATEST" | jq -r '.filename // empty')
-BACKUP_WORLD_ID=$(echo "$LATEST" | jq -r '.world_id // empty')
-BACKUP_FILE_COUNT=$(echo "$LATEST" | jq -r '.file_count // 0')
-BACKUP_TIMESTAMP=$(echo "$LATEST" | jq -r '.timestamp // empty')
-
-if [ -z "$BACKUP_FILENAME" ] || [ -z "$BACKUP_WORLD_ID" ]; then
-  warn "latest.json の内容が不正 (スキップ)"
-  exit 0
-fi
-
-log "最新バックアップ: $BACKUP_FILENAME (ワールド: $BACKUP_WORLD_ID, ファイル数: $BACKUP_FILE_COUNT, 時刻: $BACKUP_TIMESTAMP)"
+PALWORLD_DATA_DIR="${PALWORLD_DATA_DIR:-$PALWORLD_DIR/data}"
+SAVE_BASE="$PALWORLD_DATA_DIR/Pal/Saved/SaveGames/0"
 
 notify_discord() {
   local msg="$1"
@@ -51,31 +27,110 @@ notify_discord() {
   fi
 }
 
-restore_from_backup() {
-  log "バックアップから復元中: $BACKUP_FILENAME"
-  local tmp="/tmp/palworld-restore-$BACKUP_FILENAME"
-  mkdir -p "$SAVE_BASE"
-  if curl -fsS --max-time 300 \
-      -H "Authorization: Bearer $STORAGE_TOKEN" \
-      -H "x-ms-version: 2020-10-02" \
-      "$CONTAINER_URL/$BACKUP_FILENAME" \
-      -o "$tmp"; then
-    if tar -xzf "$tmp" -C "$SAVE_BASE"; then
-      log "✅ 復元完了: $SAVE_BASE/$BACKUP_WORLD_ID"
-      notify_discord "✅ **Palworld セーブデータを復元しました**\nバックアップ: \`$BACKUP_FILENAME\` ($BACKUP_TIMESTAMP)"
-    else
-      warn "tar 展開失敗"
-      notify_discord "⚠️ **Palworld セーブデータ復元失敗**\n\`tar\` の展開に失敗しました。手動で確認してください。"
-    fi
-    rm -f "$tmp"
-  else
-    warn "バックアップダウンロード失敗"
-    notify_discord "⚠️ **Palworld セーブデータ復元失敗**\nバックアップのダウンロードに失敗しました。"
-    rm -f "$tmp" 2>/dev/null || true
-  fi
-}
+if [ "${LOCAL_DEV:-false}" = "true" ]; then
+  # ── ローカル: az storage CLI で Azurite から取得 ──────────────
+  CONN="${AZURITE_CONNECTION_STRING:-UseDevelopmentStorage=true}"
+  LATEST_TMP="/tmp/palworld-latest-startcheck.json"
 
-# ── ローカルセーブを確認 ─────────────────────────────────────────────
+  if ! az storage blob download \
+      --container-name save-backup \
+      --name latest.json \
+      --file "$LATEST_TMP" \
+      --connection-string "$CONN" \
+      --output none 2>/dev/null; then
+    log "バックアップ情報なし (初回起動の可能性)"
+    rm -f "$LATEST_TMP"
+    exit 0
+  fi
+
+  BACKUP_FILENAME=$(jq -r '.filename // empty' "$LATEST_TMP")
+  BACKUP_WORLD_ID=$(jq -r '.world_id // empty' "$LATEST_TMP")
+  BACKUP_FILE_COUNT=$(jq -r '.file_count // 0' "$LATEST_TMP")
+  BACKUP_TIMESTAMP=$(jq -r '.timestamp // empty' "$LATEST_TMP")
+  rm -f "$LATEST_TMP"
+
+  restore_from_backup() {
+    log "バックアップから復元中: $BACKUP_FILENAME"
+    local tmp="/tmp/palworld-restore-$BACKUP_FILENAME"
+    mkdir -p "$SAVE_BASE"
+    if az storage blob download \
+        --container-name save-backup \
+        --name "$BACKUP_FILENAME" \
+        --file "$tmp" \
+        --connection-string "$CONN" \
+        --output none; then
+      if tar -xzf "$tmp" -C "$SAVE_BASE"; then
+        log "✅ 復元完了: $SAVE_BASE/$BACKUP_WORLD_ID"
+        notify_discord "✅ **[LOCAL] Palworld セーブデータを復元しました**\nバックアップ: \`$BACKUP_FILENAME\` ($BACKUP_TIMESTAMP)"
+      else
+        warn "tar 展開失敗"
+        notify_discord "⚠️ **[LOCAL] Palworld セーブデータ復元失敗**\n\`tar\` の展開に失敗しました。手動で確認してください。"
+      fi
+      rm -f "$tmp"
+    else
+      warn "バックアップダウンロード失敗"
+      notify_discord "⚠️ **[LOCAL] Palworld セーブデータ復元失敗**\nバックアップのダウンロードに失敗しました。"
+      rm -f "$tmp" 2>/dev/null || true
+    fi
+  }
+
+else
+  # ── Azure VM: IMDS Managed Identity でトークン取得 ────────────
+  if [ -z "${STORAGE_ACCOUNT:-}" ]; then
+    log "STORAGE_ACCOUNT 未設定 (スキップ)"
+    exit 0
+  fi
+
+  STORAGE_TOKEN=$(curl -fsS --max-time 15 \
+    -H "Metadata: true" \
+    "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fstorage.azure.com" \
+    | jq -r .access_token 2>/dev/null) || { warn "ストレージトークン取得失敗 (スキップ)"; exit 0; }
+
+  CONTAINER_URL="https://${STORAGE_ACCOUNT}.blob.core.windows.net/save-backup"
+
+  LATEST=$(curl -fsS --max-time 15 \
+    -H "Authorization: Bearer $STORAGE_TOKEN" \
+    -H "x-ms-version: 2020-10-02" \
+    "$CONTAINER_URL/latest.json" 2>/dev/null) || { log "バックアップ情報なし (初回起動の可能性)"; exit 0; }
+
+  BACKUP_FILENAME=$(echo "$LATEST" | jq -r '.filename // empty')
+  BACKUP_WORLD_ID=$(echo "$LATEST" | jq -r '.world_id // empty')
+  BACKUP_FILE_COUNT=$(echo "$LATEST" | jq -r '.file_count // 0')
+  BACKUP_TIMESTAMP=$(echo "$LATEST" | jq -r '.timestamp // empty')
+
+  restore_from_backup() {
+    log "バックアップから復元中: $BACKUP_FILENAME"
+    local tmp="/tmp/palworld-restore-$BACKUP_FILENAME"
+    mkdir -p "$SAVE_BASE"
+    if curl -fsS --max-time 300 \
+        -H "Authorization: Bearer $STORAGE_TOKEN" \
+        -H "x-ms-version: 2020-10-02" \
+        "$CONTAINER_URL/$BACKUP_FILENAME" \
+        -o "$tmp"; then
+      if tar -xzf "$tmp" -C "$SAVE_BASE"; then
+        log "✅ 復元完了: $SAVE_BASE/$BACKUP_WORLD_ID"
+        notify_discord "✅ **Palworld セーブデータを復元しました**\nバックアップ: \`$BACKUP_FILENAME\` ($BACKUP_TIMESTAMP)"
+      else
+        warn "tar 展開失敗"
+        notify_discord "⚠️ **Palworld セーブデータ復元失敗**\n\`tar\` の展開に失敗しました。手動で確認してください。"
+      fi
+      rm -f "$tmp"
+    else
+      warn "バックアップダウンロード失敗"
+      notify_discord "⚠️ **Palworld セーブデータ復元失敗**\nバックアップのダウンロードに失敗しました。"
+      rm -f "$tmp" 2>/dev/null || true
+    fi
+  }
+fi
+
+# ── 共通: セーブデータ検証ロジック ──────────────────────────────
+if [ -z "$BACKUP_FILENAME" ] || [ -z "$BACKUP_WORLD_ID" ]; then
+  warn "latest.json の内容が不正 (スキップ)"
+  exit 0
+fi
+
+log "最新バックアップ: $BACKUP_FILENAME (ワールド: $BACKUP_WORLD_ID, ファイル数: $BACKUP_FILE_COUNT, 時刻: $BACKUP_TIMESTAMP)"
+
 LOCAL_WORLD_DIR=$(find "$SAVE_BASE" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | head -1)
 
 # ケース1: ローカルセーブが存在しない → バックアップから復元
