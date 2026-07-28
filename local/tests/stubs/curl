@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# curl コマンドのスタブ - 全リクエストを成功として黙殺する
+# Discord webhook 通知、Palworld REST API 呼び出しが対象
+exit 0
