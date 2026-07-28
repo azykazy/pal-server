@@ -47,7 +47,7 @@ render_tftpl() {
   while [ $# -ge 2 ]; do
     local key="$1" val="$2"
     shift 2
-    sed -i "s|\${${key}}|${val}|g" "$tmp"
+    sed -i '' "s|\${${key}}|${val}|g" "$tmp"
   done
   sed 's/\$\$/$/g' "$tmp" > "$dst"
   rm -f "$tmp"
@@ -68,13 +68,13 @@ cp vm/palworld-start-check.sh   "$TMPDIR/palworld-start-check.sh"
 upload_script() {
   local name="$1" dest="$2"
   local src="$TMPDIR/${name}"
+  local encoded
+  encoded=$(base64 < "$src" | tr -d '\n')
   echo -n "  転送中: ${dest} ... "
   az vm run-command invoke \
       -g "$RG" -n "$VM" \
       --command-id RunShellScript \
-      --scripts "$(printf 'cat > %s << '"'"'__SCRIPT_EOF__'"'"'\n' "$dest")$(cat "$src")
-__SCRIPT_EOF__
-chmod +x ${dest}" \
+      --scripts "echo '${encoded}' | base64 -d > ${dest} && chmod +x ${dest}" \
       --output none
   echo "完了"
 }
@@ -82,7 +82,7 @@ chmod +x ${dest}" \
 upload_script fetch-secrets.sh      /opt/palworld/fetch-secrets.sh
 upload_script palworld-stop.sh      /opt/palworld/palworld-stop.sh
 upload_script palworld-start-check.sh /opt/palworld/palworld-start-check.sh
-upload_script auto-stop.sh          /usr/local/bin/auto-stop.sh
+upload_script auto-stop.sh          /opt/palworld/auto-stop.sh
 
 echo ""
 echo "✅ 全スクリプトを更新しました。"
