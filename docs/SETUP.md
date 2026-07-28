@@ -90,6 +90,29 @@ az keyvault secret show --vault-name $(terraform -chdir=terraform output -raw ke
 5. 自動停止の確認: サーバー起動後、誰も接続せず30分放置 →
    Webhook チャンネルに自動停止通知が届き、VM が割り当て解除される
 
+## VM スクリプトの手動更新
+
+`vm.tf` の `lifecycle { ignore_changes = [custom_data] }` により、cloud-init スクリプトの変更は **既存 VM に自動適用されません**。バグ修正やセキュリティ修正を稼働中の VM に反映するには、以下を実行してください。
+
+```bash
+bash scripts/update-vm-scripts.sh
+```
+
+**前提条件:**
+- `terraform apply` 済みで `terraform output` が取得可能
+- `az login` 済みで対象リソースグループへの権限がある
+
+**更新されるスクリプト:**
+
+| VM 上のパス | ソース |
+|---|---|
+| `/opt/palworld/fetch-secrets.sh` | `vm/fetch-secrets.sh.tftpl` (変数展開済み) |
+| `/opt/palworld/palworld-stop.sh` | `vm/palworld-stop.sh` |
+| `/opt/palworld/palworld-start-check.sh` | `vm/palworld-start-check.sh` |
+| `/usr/local/bin/auto-stop.sh` | `vm/auto-stop.sh.tftpl` (変数展開済み) |
+
+更新後、次回サーバー起動 (`/palworld start`) から新しいスクリプトが使用されます。
+
 ## トラブルシューティング
 
 | 症状 | 確認ポイント |
