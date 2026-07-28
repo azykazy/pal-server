@@ -25,6 +25,10 @@ az vm run-command invoke -g "$RG" -n "$VM" --command-id RunShellScript --scripts
 
 read -rp "ホストの新しい GUID (上の一覧の $OLD_GUID 以外の新しい .sav のファイル名、拡張子なし): " NEW_GUID
 [ -n "$NEW_GUID" ] || { echo "GUID が空です"; exit 1; }
+if [[ ! "$NEW_GUID" =~ ^[0-9a-fA-F]{32}$ ]]; then
+  echo "GUID 形式が不正です（32桁の16進数を入力してください）" >&2
+  exit 1
+fi
 
 echo "== 修正ツールのセットアップと実行 (サーバー停止 → fix → 起動) =="
 az vm run-command invoke -g "$RG" -n "$VM" --command-id RunShellScript --scripts "
@@ -45,7 +49,7 @@ az vm run-command invoke -g "$RG" -n "$VM" --command-id RunShellScript --scripts
   SAVE=/opt/palworld/data/Pal/Saved/SaveGames/0/\$W
   cp -a \"\$SAVE\" \"/opt/palworld/save-backup-\$(date +%s)\"
   cd /opt/psfix-v2
-  echo '' | /opt/psfix-v2/venv/bin/python fix_host_save.py \"\$SAVE\" $NEW_GUID $OLD_GUID --guild-fix
+  echo '' | /opt/psfix-v2/venv/bin/python fix_host_save.py \"\$SAVE\" "$NEW_GUID" "$OLD_GUID" --guild-fix
   chown -R 1000:1000 \"\$SAVE\"
   systemctl start palworld.service
   echo FIX_DONE
