@@ -23,8 +23,9 @@ STORAGE=$(terraform -chdir=terraform output -raw storage_account_name)
 KEY_VAULT_URI="https://${KV_NAME}.vault.azure.net/"
 GAME_SETTINGS_BLOB_URL="https://${STORAGE}.blob.core.windows.net/game-config/settings.env"
 
-# idle_checks は terraform.tfvars から取得（なければデフォルト 12）
-IDLE_CHECKS=$(grep -oP 'idle_checks\s*=\s*\K\d+' terraform/terraform.tfvars 2>/dev/null || echo "12")
+# idle_checks: 環境変数 > terraform.tfvars > デフォルト値 (6) の優先順で取得。
+# CI 環境では IDLE_CHECKS 環境変数を渡すことで tfvars なしでも動作する。
+IDLE_CHECKS=${IDLE_CHECKS:-$(grep -oP 'idle_checks\s*=\s*\K\d+' terraform/terraform.tfvars 2>/dev/null || echo "6")}
 
 echo "対象 VM : ${RG} / ${VM}"
 echo "Key Vault: ${KEY_VAULT_URI}"
@@ -63,10 +64,21 @@ render_tftpl vm/auto-stop.sh.tftpl "$TMPDIR/auto-stop.sh" \
 
 cp vm/palworld-stop.sh          "$TMPDIR/palworld-stop.sh"
 cp vm/palworld-start-check.sh   "$TMPDIR/palworld-start-check.sh"
+cp vm/self-update.sh            "$TMPDIR/self-update.sh"
+
+# .vm-config を生成 (self-update.sh がテンプレートレンダリングに使用)
+cat > "$TMPDIR/.vm-config" << EOF
+# VM スクリプト更新用の設定ファイル (update-vm-scripts.sh が生成)
+KEY_VAULT_URI='${KEY_VAULT_URI}'
+GAME_SETTINGS_BLOB_URL='${GAME_SETTINGS_BLOB_URL}'
+STORAGE_ACCOUNT_NAME='${STORAGE}'
+IDLE_CHECKS='${IDLE_CHECKS}'
+REPO_URL='https://github.com/azykazy/pal-server.git'
+EOF
 
 # ── VM に転送・上書き ────────────────────────────────────────────────
 upload_script() {
-  local name="$1" dest="$2"
+  local name="$1" dest="$2" perms="${3:-+x}"
   local src="$TMPDIR/${name}"
   local encoded
   encoded=$(base64 < "$src" | tr -d '\n')
@@ -74,16 +86,34 @@ upload_script() {
   az vm run-command invoke \
       -g "$RG" -n "$VM" \
       --command-id RunShellScript \
-      --scripts "echo '${encoded}' | base64 -d > ${dest} && chmod +x ${dest}" \
+      --scripts "echo '${encoded}' | base64 -d > ${dest} && chmod ${perms} ${dest}" \
       --output none
   echo "完了"
 }
 
-upload_script fetch-secrets.sh      /opt/palworld/fetch-secrets.sh
-upload_script palworld-stop.sh      /opt/palworld/palworld-stop.sh
+upload_script fetch-secrets.sh        /opt/palworld/fetch-secrets.sh
+upload_script palworld-stop.sh        /opt/palworld/palworld-stop.sh
 upload_script palworld-start-check.sh /opt/palworld/palworld-start-check.sh
-upload_script auto-stop.sh          /opt/palworld/auto-stop.sh
+upload_script auto-stop.sh            /opt/palworld/auto-stop.sh
+upload_script self-update.sh          /opt/palworld/self-update.sh
+upload_script .vm-config              /opt/palworld/.vm-config 600
+
+# ── palworld.service に self-update.sh を ExecStartPre として追加 ──────
+# 既に登録済みの場合はスキップ (冪等)
+echo -n "  palworld.service を更新中 ... "
+az vm run-command invoke \
+    -g "$RG" -n "$VM" \
+    --command-id RunShellScript \
+    --scripts "
+grep -q 'self-update.sh' /etc/systemd/system/palworld.service || {
+  sed -i '/ExecStartPre=.*fetch-secrets/i ExecStartPre=-/opt/palworld/self-update.sh' \
+    /etc/systemd/system/palworld.service
+  systemctl daemon-reload
+}
+" \
+    --output none
+echo "完了"
 
 echo ""
 echo "✅ 全スクリプトを更新しました。"
-echo "   次回サーバー起動時 (/palworld start) から新しいスクリプトが使用されます。"
+echo "   次回サーバー起動時 (/palworld start) から git pull が自動実行されます。"

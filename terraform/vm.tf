@@ -18,12 +18,24 @@ locals {
     idle_checks = var.idle_checks
   })
 
+  self_update = file("${path.module}/../vm/self-update.sh")
+
+  vm_config = templatefile("${path.module}/../vm/vm-config.tftpl", {
+    key_vault_uri          = azurerm_key_vault.main.vault_uri
+    game_settings_blob_url = "${azurerm_storage_account.func.primary_blob_endpoint}${azurerm_storage_container.game_config.name}/settings.env"
+    storage_account_name   = azurerm_storage_account.func.name
+    idle_checks            = var.idle_checks
+    repo_url               = "https://github.com/azykazy/pal-server.git"
+  })
+
   cloud_init = templatefile("${path.module}/cloud-init.yaml.tftpl", {
     docker_compose       = local.docker_compose
     palworld_stop        = local.palworld_stop
     fetch_secrets        = local.fetch_secrets
     auto_stop            = local.auto_stop
     palworld_start_check = local.palworld_start_check
+    self_update          = local.self_update
+    vm_config            = local.vm_config
   })
 }
 
