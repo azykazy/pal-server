@@ -59,7 +59,7 @@ if [ "${LOCAL_DEV:-false}" = "true" ]; then
         --file "$tmp" \
         --connection-string "$CONN" \
         --output none; then
-      if tar -xzf "$tmp" -C "$SAVE_BASE"; then
+      if tar -xzf "$tmp" -C "$SAVE_BASE" --no-absolute-names --no-overwrite-dir; then
         log "✅ 復元完了: $SAVE_BASE/$BACKUP_WORLD_ID"
         notify_discord "✅ **[LOCAL] Palworld セーブデータを復元しました**\nバックアップ: \`$BACKUP_FILENAME\` ($BACKUP_TIMESTAMP)"
       else
@@ -107,7 +107,7 @@ else
         -H "x-ms-version: 2020-10-02" \
         "$CONTAINER_URL/$BACKUP_FILENAME" \
         -o "$tmp"; then
-      if tar -xzf "$tmp" -C "$SAVE_BASE"; then
+      if tar -xzf "$tmp" -C "$SAVE_BASE" --no-absolute-names --no-overwrite-dir; then
         log "✅ 復元完了: $SAVE_BASE/$BACKUP_WORLD_ID"
         notify_discord "✅ **Palworld セーブデータを復元しました**\nバックアップ: \`$BACKUP_FILENAME\` ($BACKUP_TIMESTAMP)"
       else
