@@ -48,7 +48,7 @@ SAVE_BASE="$PALWORLD_DATA_DIR/Pal/Saved/SaveGames/0"
 SETTINGS="$PALWORLD_DATA_DIR/Pal/Saved/Config/LinuxServer/GameUserSettings.ini"
 
 # sed で取得 (GNU grep -oP がない macOS でも動作)
-WORLD_HASH=$(sed -n 's/^DedicatedServerName=//p' "$SETTINGS" 2>/dev/null | tr -d '[:space:]' || true)
+WORLD_HASH=$(sed -n 's/^DedicatedServerName=//p' "$SETTINGS" 2>/dev/null | head -1 | tr -d '[:space:]' || true)
 WORLD_DIR="${SAVE_BASE}/${WORLD_HASH}"
 
 if [ -z "$WORLD_HASH" ] || [ ! -d "$WORLD_DIR" ]; then
@@ -95,11 +95,11 @@ if [ "${LOCAL_DEV:-false}" = "true" ]; then
   echo "バックアップ完了: save-backup/$BACKUP_NAME (ワールド: $WORLD_ID, ファイル数: $FILE_COUNT)"
 else
   # Azure VM: IMDS Managed Identity でトークン取得 → Blob Storage に curl でアップロード
-  STORAGE_TOKEN=$(curl -fsS --max-time 15 -H "Metadata: true" \
-    "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fstorage.azure.com" \
-    | jq -r .access_token) || true
+  IMDS_RESPONSE=$(curl -fsS --max-time 15 -H "Metadata: true" \
+    "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fstorage.azure.com" 2>&1) || true
+  STORAGE_TOKEN=$(echo "$IMDS_RESPONSE" | jq -r .access_token 2>/dev/null || true)
   if [ -z "${STORAGE_TOKEN:-}" ] || [ "$STORAGE_TOKEN" = "null" ]; then
-    echo "IMDS トークン取得失敗 (バックアップをスキップ)" >&2
+    echo "IMDS トークン取得失敗 (バックアップをスキップ): $IMDS_RESPONSE" >&2
   elif curl -fsS --max-time 120 -X PUT \
       -H "Authorization: Bearer $STORAGE_TOKEN" \
       -H "x-ms-version: 2020-10-02" \
@@ -116,17 +116,20 @@ else
       --argjson file_count "$FILE_COUNT" \
       --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
       '{filename: $filename, world_id: $world_id, file_count: $file_count, timestamp: $timestamp}')
+    LATEST_JSON_TMP="/tmp/latest-$$.json"
+    echo "$LATEST_JSON" > "$LATEST_JSON_TMP"
     if curl -fsS --max-time 30 -X PUT \
         -H "Authorization: Bearer $STORAGE_TOKEN" \
         -H "x-ms-version: 2020-10-02" \
         -H "x-ms-blob-type: BlockBlob" \
         -H "Content-Type: application/json" \
-        --data-binary "$LATEST_JSON" \
+        --data-binary "@$LATEST_JSON_TMP" \
         "https://${STORAGE_ACCOUNT}.blob.core.windows.net/save-backup/latest.json"; then
       echo "latest.json 更新完了 (ワールド: $WORLD_ID, ファイル数: $FILE_COUNT)"
     else
       echo "latest.json 更新失敗 (停止処理は継続)" >&2
     fi
+    rm -f "$LATEST_JSON_TMP"
   else
     echo "バックアップ失敗 (停止処理は継続)" >&2
   fi
