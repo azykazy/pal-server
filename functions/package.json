@@ -2,7 +2,22 @@
   "name": "palworld-discord-bot",
   "version": "1.0.0",
   "description": "Discord slash commands to start/stop the Palworld Azure Spot VM",
-  "main": "src/functions/*.js",
+  "main": "out/functions/*.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:coverage": "jest --coverage"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "transform": {
+      "^.+\\.ts$": "ts-jest"
+    },
+    "moduleFileExtensions": ["ts", "js", "json"]
+  },
   "engines": {
     "node": ">=20"
   },
@@ -12,5 +27,11 @@
     "@azure/functions": "^4.16.2",
     "@azure/identity": "^4.13.1",
     "discord-interactions": "^4.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "jest": "^30.4.2",
+    "ts-jest": "^29.4.12",
+    "typescript": "^6.0.3"
   }
 }

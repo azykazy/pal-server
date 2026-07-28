@@ -10,8 +10,10 @@ rm -f dist/functions.zip
 
 (
   cd functions
-  npm ci --omit=dev --no-audit --no-fund
-  zip -qr ../dist/functions.zip host.json package.json src node_modules \
+  npm ci --no-audit --no-fund
+  npx tsc
+  npm prune --omit=dev
+  zip -qr ../dist/functions.zip host.json package.json out node_modules \
     -x '*.DS_Store' -x 'local.settings.json'
 )
 

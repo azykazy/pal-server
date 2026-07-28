@@ -11,6 +11,8 @@ crash.log
 
 # Functions ビルド成果物
 dist/
+functions/out/
+functions/coverage/
 node_modules/
 local.settings.json
 

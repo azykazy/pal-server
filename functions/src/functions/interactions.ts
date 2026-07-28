@@ -1,5 +1,5 @@
-const { app, output } = require('@azure/functions');
-const { verifyKey, InteractionType, InteractionResponseType } = require('discord-interactions');
+import { app, output } from '@azure/functions';
+import { verifyKey, InteractionType, InteractionResponseType } from 'discord-interactions';
 
 // Discord の 3 秒制限内に deferred 応答を返し、実処理はキュー経由で worker に渡す
 const jobQueue = output.storageQueue({
@@ -20,13 +20,17 @@ app.http('interactions', {
     const isValid =
       signature &&
       timestamp &&
-      (await verifyKey(rawBody, signature, timestamp, process.env.DISCORD_PUBLIC_KEY));
+      (await verifyKey(rawBody, signature, timestamp, process.env.DISCORD_PUBLIC_KEY ?? ''));
     if (!isValid) {
       context.warn('invalid request signature');
       return { status: 401, body: 'invalid request signature' };
     }
 
-    const interaction = JSON.parse(rawBody);
+    const interaction = JSON.parse(rawBody) as {
+      type: number;
+      token: string;
+      data?: { name?: string; options?: { name: string }[]; custom_id?: string };
+    };
 
     if (interaction.type === InteractionType.PING) {
       return { jsonBody: { type: InteractionResponseType.PONG } };
@@ -40,7 +44,7 @@ app.http('interactions', {
       interaction.data?.name === 'palworld'
     ) {
       const action = interaction.data.options?.[0]?.name;
-      if (!VALID_ACTIONS.includes(action)) {
+      if (!action || !VALID_ACTIONS.includes(action)) {
         return {
           jsonBody: {
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -63,9 +67,14 @@ app.http('interactions', {
 
     // 操作パネルのボタン (custom_id: palworld_<action>)
     if (interaction.type === InteractionType.MESSAGE_COMPONENT) {
-      const action = (interaction.data?.custom_id || '').replace(/^palworld_/, '');
+      const action = (interaction.data?.custom_id ?? '').replace(/^palworld_/, '');
       if (!VALID_ACTIONS.includes(action)) {
-        return { status: 400, body: 'unknown component' };
+        return {
+          jsonBody: {
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: { content: '不明な操作です。', flags: 64 },
+          },
+        };
       }
 
       context.extraOutputs.set(jobQueue, { action, token: interaction.token });

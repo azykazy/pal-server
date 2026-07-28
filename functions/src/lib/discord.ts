@@ -1,6 +1,9 @@
 // Discord へのフォローアップ・通知 (Bot トークン不要、interaction token / webhook URL で認可される)
 
-async function editOriginalResponse(interactionToken, content) {
+export async function editOriginalResponse(
+  interactionToken: string,
+  content: string,
+): Promise<void> {
   const applicationId = process.env.DISCORD_APPLICATION_ID;
   const url = `https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`;
   const res = await fetch(url, {
@@ -13,7 +16,7 @@ async function editOriginalResponse(interactionToken, content) {
   }
 }
 
-async function notifyWebhook(content) {
+export async function notifyWebhook(content: string): Promise<void> {
   const url = process.env.DISCORD_WEBHOOK_URL;
   if (!url) return;
   try {
@@ -26,8 +29,6 @@ async function notifyWebhook(content) {
       console.warn(`Discord webhook returned ${res.status}`);
     }
   } catch (err) {
-    console.warn('Discord webhook failed:', err.message);
+    console.warn('Discord webhook failed:', (err as Error).message);
   }
 }
-
-module.exports = { editOriginalResponse, notifyWebhook };
