@@ -1,0 +1,161 @@
+---
+# main ブランチへの push 時に変更箇所のみを自動デプロイする。
+#
+# ジョブ構成:
+#   changes          - 変更されたパスを検出し、後続ジョブの実行可否を決定
+#   deploy-functions - functions/** の変更時に Azure Functions へデプロイ
+#   update-vm        - vm/** の変更時に VM スクリプトを更新
+#                      VM が停止中の場合はスキップし、ジョブサマリーに案内を表示
+#
+# 事前準備 (docs/SETUP.md の「GitHub Actions 設定」参照):
+#   GitHub Secrets:
+#     AZURE_CLIENT_ID       - OIDC 用 App Registration のクライアント ID
+#     AZURE_TENANT_ID       - Azure テナント ID
+#     AZURE_SUBSCRIPTION_ID - Azure サブスクリプション ID
+#
+#   Azure RBAC (サービスプリンシパルに付与):
+#     Storage Blob Data Contributor  on rg-tfstate/sttfstatepal878dff (Terraform backend 読み取り)
+#     Website Contributor            on pal-server RG (Functions デプロイ)
+#     Virtual Machine Contributor    on pal-server RG (VM run-command)
+#     Reader                         on pal-server RG (VM 状態確認)
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write  # Azure OIDC トークン取得に必要
+  contents: read
+
+jobs:
+  # ── 変更パス検出 ─────────────────────────────────────────────────
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      functions: ${{ steps.filter.outputs.functions }}
+      vm: ${{ steps.filter.outputs.vm }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            functions:
+              - 'functions/**'
+            vm:
+              - 'vm/**'
+
+  # ── Azure Functions デプロイ ─────────────────────────────────────
+  deploy-functions:
+    name: Deploy Functions
+    needs: changes
+    if: needs.changes.outputs.functions == 'true'
+    runs-on: ubuntu-latest
+    env:
+      ARM_USE_OIDC: 'true'
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: terraform -chdir=terraform init -input=false
+
+      - name: Deploy Functions
+        run: bash scripts/deploy-functions.sh
+
+  # ── VM スクリプト更新 ────────────────────────────────────────────
+  update-vm:
+    name: Update VM scripts
+    needs: changes
+    if: needs.changes.outputs.vm == 'true'
+    runs-on: ubuntu-latest
+    env:
+      ARM_USE_OIDC: 'true'
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: terraform -chdir=terraform init -input=false
+
+      - name: Get resource info from Terraform state
+        id: tf
+        run: |
+          RG=$(terraform -chdir=terraform output -raw resource_group_name)
+          VM=$(terraform -chdir=terraform output -raw vm_name)
+          echo "rg=${RG}" >> "$GITHUB_OUTPUT"
+          echo "vm=${VM}" >> "$GITHUB_OUTPUT"
+          echo "RG: ${RG}, VM: ${VM}"
+
+      - name: Check VM power state
+        id: vm-state
+        run: |
+          STATE=$(az vm get-instance-view \
+            --resource-group "${{ steps.tf.outputs.rg }}" \
+            --name "${{ steps.tf.outputs.vm }}" \
+            --query "instanceView.statuses[?starts_with(code, 'PowerState/')].code" \
+            --output tsv)
+          echo "state=${STATE}" >> "$GITHUB_OUTPUT"
+          echo "VM power state: ${STATE}"
+
+      - name: Update VM scripts
+        if: steps.vm-state.outputs.state == 'PowerState/running'
+        run: bash scripts/update-vm-scripts.sh
+        env:
+          IDLE_CHECKS: ${{ vars.IDLE_CHECKS || '6' }}
+
+      - name: Skip — VM is not running
+        if: steps.vm-state.outputs.state != 'PowerState/running'
+        run: |
+          echo "⚠️ VM は起動していません (state: ${{ steps.vm-state.outputs.state }})"
+          echo "VM スクリプトの自動更新をスキップしました。"
+          {
+            echo "## ⚠️ VM スクリプト更新スキップ"
+            echo ""
+            echo "VM の電源状態: \`${{ steps.vm-state.outputs.state }}\`"
+            echo ""
+            echo "次回 VM 起動後に以下を手動実行してください:"
+            echo '```bash'
+            echo "bash scripts/update-vm-scripts.sh"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
