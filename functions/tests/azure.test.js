@@ -37,6 +37,9 @@ jest.mock('@azure/arm-compute', () => ({
   })),
 }));
 
+const mockNotifyWebhook = jest.fn().mockResolvedValue(undefined);
+jest.mock('../src/lib/discord', () => ({ notifyWebhook: mockNotifyWebhook }));
+
 jest.mock('@azure/arm-network', () => ({
   NetworkManagementClient: jest.fn().mockImplementation(() => ({
     publicIPAddresses: {
@@ -53,7 +56,7 @@ jest.mock('@azure/arm-network', () => ({
 
 const { startServer, stopServer, getStatus, getPowerState, removePublicIp } = require('../src/lib/azure');
 
-const mockContext = { log: jest.fn() };
+const mockContext = { log: jest.fn(), warn: jest.fn() };
 
 function makeNic(pipId = null) {
   return {
@@ -119,11 +122,13 @@ describe('removePublicIp', () => {
     await expect(removePublicIp(mockContext)).resolves.toBeUndefined();
   });
 
-  test('PIP 削除で 404 以外のエラーは再スローする', async () => {
+  test('PIP 削除で 404 以外のエラーは Discord 通知して握り潰す', async () => {
     mockGetNic.mockResolvedValue(makeNic(null));
     mockBeginDeleteAndWait.mockRejectedValue(new Error('server error'));
 
-    await expect(removePublicIp(mockContext)).rejects.toThrow('server error');
+    await expect(removePublicIp(mockContext)).resolves.toBeUndefined();
+    expect(mockNotifyWebhook).toHaveBeenCalledWith(expect.stringContaining('pip-test'));
+    expect(mockContext.warn).toHaveBeenCalledWith('PIP deletion failed', expect.any(Error));
   });
 });
 

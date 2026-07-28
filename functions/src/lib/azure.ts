@@ -2,6 +2,7 @@ import { DefaultAzureCredential } from '@azure/identity';
 import { ComputeManagementClient } from '@azure/arm-compute';
 import { NetworkManagementClient } from '@azure/arm-network';
 import type { InvocationContext } from '@azure/functions';
+import { notifyWebhook } from './discord';
 
 const subscriptionId = process.env.AZURE_SUBSCRIPTION_ID ?? '';
 const resourceGroup = process.env.RESOURCE_GROUP ?? '';
@@ -12,8 +13,9 @@ const location = process.env.LOCATION ?? '';
 const gamePort = process.env.GAME_PORT ?? '8211';
 
 const credential = new DefaultAzureCredential();
-const compute = new ComputeManagementClient(credential, subscriptionId);
-const network = new NetworkManagementClient(credential, subscriptionId);
+const retryOptions = { maxRetries: 3, retryDelayInMs: 1000, maxRetryDelayInMs: 8000 };
+const compute = new ComputeManagementClient(credential, subscriptionId, { retryOptions });
+const network = new NetworkManagementClient(credential, subscriptionId, { retryOptions });
 
 function isNotFound(err: unknown): boolean {
   const e = err as { statusCode?: number; code?: string };
@@ -71,7 +73,10 @@ async function removePublicIp(context: InvocationContext): Promise<void> {
     context.log(`deleting public IP ${pipName}`);
     await network.publicIPAddresses.beginDeleteAndWait(resourceGroup, pipName);
   } catch (err) {
-    if (!isNotFound(err)) throw err;
+    if (!isNotFound(err)) {
+      await notifyWebhook(`⚠️ Public IP の削除に失敗しました。手動で ${pipName} を削除してください。`);
+      context.warn('PIP deletion failed', err);
+    }
   }
 }
 
