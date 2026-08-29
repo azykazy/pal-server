@@ -64,7 +64,6 @@ resource "azurerm_linux_virtual_machine" "palworld" {
     caching              = "ReadWrite"
     storage_account_type = "StandardSSD_LRS"
     disk_size_gb         = 32
-    delete_option        = "Delete"
   }
 
   source_image_reference {
