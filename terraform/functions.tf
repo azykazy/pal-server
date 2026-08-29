@@ -112,6 +112,13 @@ resource "azurerm_function_app_flex_consumption" "bot" {
     GAME_PORT       = tostring(local.game_port)
     KEY_VAULT_URI   = azurerm_key_vault.main.vault_uri
     SERVER_PASSWORD = "@Microsoft.KeyVault(SecretUri=${local.kv_secret_uri.server_password})"
+
+    # VM 作成に必要なパラメータ (/palworld start が新規 VM を起動する)
+    VM_SIZE                      = var.vm_size
+    VM_ADMIN_USERNAME            = var.admin_username
+    VM_SSH_PUBLIC_KEY            = var.ssh_public_key
+    VM_USER_ASSIGNED_IDENTITY_ID = azurerm_user_assigned_identity.vm.id
+    CLOUD_INIT_BASE64            = base64encode(local.cloud_init)
   }
 
   # コードのデプロイは Terraform では行わない (Flex への zip 発行が不安定なため)。

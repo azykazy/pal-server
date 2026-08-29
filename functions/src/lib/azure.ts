@@ -12,6 +12,12 @@ const pipName = process.env.PIP_NAME ?? '';
 const location = process.env.LOCATION ?? '';
 const gamePort = process.env.GAME_PORT ?? '8211';
 
+const vmSize = process.env.VM_SIZE ?? 'Standard_D4as_v5';
+const adminUsername = process.env.VM_ADMIN_USERNAME ?? 'azureuser';
+const sshPublicKey = process.env.VM_SSH_PUBLIC_KEY ?? '';
+const userAssignedIdentityId = process.env.VM_USER_ASSIGNED_IDENTITY_ID ?? '';
+const cloudInitBase64 = process.env.CLOUD_INIT_BASE64 ?? '';
+
 const credential = new DefaultAzureCredential();
 const retryOptions = { maxRetries: 3, retryDelayInMs: 1000, maxRetryDelayInMs: 8000 };
 const compute = new ComputeManagementClient(credential, subscriptionId, { retryOptions });
@@ -23,9 +29,14 @@ function isNotFound(err: unknown): boolean {
 }
 
 async function getPowerState(): Promise<string> {
-  const view = await compute.virtualMachines.instanceView(resourceGroup, vmName);
-  const status = (view.statuses ?? []).find((s) => s.code && s.code.startsWith('PowerState/'));
-  return status ? status.code!.replace('PowerState/', '') : 'unknown';
+  try {
+    const view = await compute.virtualMachines.instanceView(resourceGroup, vmName);
+    const status = (view.statuses ?? []).find((s) => s.code && s.code.startsWith('PowerState/'));
+    return status ? status.code!.replace('PowerState/', '') : 'unknown';
+  } catch (err) {
+    if (isNotFound(err)) return 'deleted';
+    throw err;
+  }
 }
 
 // Public IP を用意して NIC に関連付け、グローバル IP アドレスを返す
@@ -102,11 +113,60 @@ export async function startServer(context: InvocationContext): Promise<string> {
   const state = await getPowerState();
   context.log(`current power state: ${state}`);
 
-  const ip = await ensurePublicIp(context);
-  if (state !== 'running') {
-    context.log(`starting VM ${vmName}`);
-    await compute.virtualMachines.beginStartAndWait(resourceGroup, vmName);
+  if (state === 'running') {
+    const ip = await ensurePublicIp(context);
+    return ['🟢 **Palworld サーバーはすでに起動しています。**', '', await connectionInfo(ip ?? '')].join('\n');
   }
+
+  // Azure eviction 等で deallocated のまま残っている場合は先に削除してからクリーン再作成する
+  if (state !== 'deleted') {
+    context.log(`deleting existing VM ${vmName} (state: ${state}) before recreation`);
+    await compute.virtualMachines.beginDeleteAndWait(resourceGroup, vmName);
+  }
+
+  const ip = await ensurePublicIp(context);
+  const nic = await network.networkInterfaces.get(resourceGroup, nicName);
+
+  context.log(`creating VM ${vmName}`);
+  await compute.virtualMachines.beginCreateOrUpdateAndWait(resourceGroup, vmName, {
+    location,
+    hardwareProfile: { vmSize },
+    priority: 'Spot',
+    evictionPolicy: 'Delete',
+    billingProfile: { maxPrice: -1 },
+    osProfile: {
+      computerName: vmName,
+      adminUsername,
+      linuxConfiguration: {
+        disablePasswordAuthentication: true,
+        ssh: {
+          publicKeys: [{ path: `/home/${adminUsername}/.ssh/authorized_keys`, keyData: sshPublicKey }],
+        },
+      },
+      customData: cloudInitBase64,
+    },
+    storageProfile: {
+      imageReference: {
+        publisher: 'Canonical',
+        offer: 'ubuntu-24_04-lts',
+        sku: 'server',
+        version: 'latest',
+      },
+      osDisk: {
+        createOption: 'FromImage',
+        managedDisk: { storageAccountType: 'StandardSSD_LRS' },
+        diskSizeGB: 32,
+        deleteOption: 'Delete',
+      },
+    },
+    networkProfile: {
+      networkInterfaces: [{ id: nic.id, primary: true }],
+    },
+    identity: {
+      type: 'UserAssigned',
+      userAssignedIdentities: { [userAssignedIdentityId]: {} },
+    },
+  });
 
   return [
     '🟢 **Palworld サーバーを起動しました！**',
@@ -124,9 +184,9 @@ export async function stopServer(
   const state = await getPowerState();
   context.log(`current power state: ${state}`);
 
-  if (state === 'deallocated' || state === 'deallocating') {
+  if (state === 'deleted') {
     await removePublicIp(context);
-    return '⚪ サーバーはすでに停止しています (コンピューティング課金なし)。';
+    return '⚪ サーバーはすでに削除済みです (課金なし)。';
   }
 
   if (graceful && state === 'running') {
@@ -137,15 +197,15 @@ export async function stopServer(
         script: ['systemctl stop palworld.service || true'],
       });
     } catch (err) {
-      context.log(`run command failed, continuing to deallocate: ${(err as Error).message}`);
+      context.log(`run command failed, continuing to delete: ${(err as Error).message}`);
     }
   }
 
-  context.log(`deallocating VM ${vmName}`);
-  await compute.virtualMachines.beginDeallocateAndWait(resourceGroup, vmName);
+  context.log(`deleting VM ${vmName}`);
+  await compute.virtualMachines.beginDeleteAndWait(resourceGroup, vmName);
   await removePublicIp(context);
 
-  return '🔴 **Palworld サーバーを停止しました。** コンピューティングと IP の課金は止まりました。';
+  return '🔴 **Palworld サーバーを停止しました。** VM と OS ディスクを削除しました。';
 }
 
 export async function getStatus(context: InvocationContext): Promise<string> {
@@ -165,6 +225,11 @@ export async function getStatus(context: InvocationContext): Promise<string> {
       ip ? await connectionInfo(ip) : '(Public IP なし — /palworld start を実行してください)',
     ].join('\n');
   }
+
+  if (state === 'deleted') {
+    return '⚪ サーバーは削除済みです。`/palworld start` で起動できます。';
+  }
+
   return `⚪ サーバーは停止中です (${state})。\`/palworld start\` で起動できます。`;
 }
 
