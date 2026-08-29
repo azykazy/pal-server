@@ -45,9 +45,9 @@ resource "azurerm_linux_virtual_machine" "palworld" {
   location            = azurerm_resource_group.main.location
   size                = var.vm_size
 
-  # Spot: 使っている間だけ課金。eviction されてもディスクを保持して再起動できるようにする
+  # Spot: 使っている間だけ課金。eviction 時も VM とディスクを完全削除してコストをゼロにする
   priority        = "Spot"
-  eviction_policy = "Deallocate"
+  eviction_policy = "Delete"
   max_bid_price   = -1 # 価格理由では evict しない (容量理由の eviction は起こり得る)
 
   admin_username                  = var.admin_username
@@ -64,6 +64,7 @@ resource "azurerm_linux_virtual_machine" "palworld" {
     caching              = "ReadWrite"
     storage_account_type = "StandardSSD_LRS"
     disk_size_gb         = 32
+    delete_option        = "Delete"
   }
 
   source_image_reference {
@@ -73,9 +74,10 @@ resource "azurerm_linux_virtual_machine" "palworld" {
     version   = "latest"
   }
 
-  # Key Vault からのシークレット取得 (fetch-secrets.sh) に使用
+  # VM 再作成後も同じロール割り当てが有効なよう User-Assigned Identity を使用
   identity {
-    type = "SystemAssigned"
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.vm.id]
   }
 
   custom_data = base64encode(local.cloud_init)
