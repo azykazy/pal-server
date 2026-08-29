@@ -40,28 +40,6 @@ resource "azurerm_storage_container" "save_backup" {
   container_access_type = "private"
 }
 
-# save-backup コンテナの世代管理: 30 日以上経過した tar.gz を自動削除
-# latest.json は除外して最新世代情報は常に保持する
-resource "azurerm_storage_management_policy" "save_backup_lifecycle" {
-  storage_account_id = azurerm_storage_account.func.id
-
-  rule {
-    name    = "delete-old-backups"
-    enabled = true
-
-    filters {
-      prefix_match = ["save-backup/"]
-      blob_types   = ["blockBlob"]
-    }
-
-    actions {
-      base_blob {
-        delete_after_days_since_modification_greater_than = 30
-      }
-    }
-  }
-}
-
 resource "azurerm_service_plan" "func" {
   name                = "plan-${var.prefix}"
   resource_group_name = azurerm_resource_group.main.name
