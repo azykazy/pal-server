@@ -37,6 +37,16 @@ write_files:
     content: |
       ${indent(6, auto_stop)}
 
+  - path: /opt/palworld/self-update.sh
+    permissions: "0700"
+    content: |
+      ${indent(6, self_update)}
+
+  - path: /opt/palworld/.vm-config
+    permissions: "0600"
+    content: |
+      ${indent(6, vm_config)}
+
   - path: /opt/palworld/provision.sh
     permissions: "0700"
     content: |
@@ -76,6 +86,7 @@ write_files:
       Type=oneshot
       RemainAfterExit=yes
       WorkingDirectory=/opt/palworld
+      ExecStartPre=-/opt/palworld/self-update.sh
       ExecStartPre=/opt/palworld/fetch-secrets.sh
       ExecStartPre=/opt/palworld/palworld-start-check.sh
       ExecStart=/usr/bin/docker compose up -d
